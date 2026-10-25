@@ -19,6 +19,7 @@ W=${WORK:-$F/home/.work/cccodroid-test}
 echo "▸ 源码副本 → $W"
 rm -rf "$W"; mkdir -p "$W"
 cp -RL "$ROOT/android" "$ROOT/gateway" "$ROOT/scripts" "$ROOT/third_party" "$W/"
+mkdir -p "$W/devkit"; for e in "$ROOT"/devkit/*; do [ "$(basename "$e")" = cache ] || cp -RL "$e" "$W/devkit/"; done   # 0.3.18 起 build.sh 用 devkit.mjs ldso 抽 glibc 加载器（缓存不拷：锁文件按 pin 重新下、核哈希）
 cp "$ROOT/devkit-sources.txt" "$ROOT/devkit-pin.json" "$W/"
 rm -rf "$W/android/build" "$W/android/assets/app"
 node "$ROOT/scripts/mktest.mjs" "$W"
