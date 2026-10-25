@@ -74,7 +74,7 @@ See **[Design philosophy](docs/design-philosophy.md)**.
   - Any other compatible third-party endpoint you add.
   - On-device model: with the llama.cpp component installed, chat with a small model running on the phone itself, offline and free. Phone hardware is limited, so leave real work to a cloud model.
   - **Per conversation**: the provider, model and effort in Settings are defaults; picking something inside a conversation changes only that one. Several conversations can run at once — one on a Claude account, another on DeepSeek — without getting in each other's way.
-- **A complete development toolchain** (over 300 packages, taken from the official [Termux](https://termux.dev) repositories):
+- **A complete development toolchain** (about 250 packages, taken from the official [Termux](https://termux.dev) repositories):
   - C/C++: clang 21 / lld, make / cmake / ninja, gdb / strace.
   - Languages: Python 3.14 (pip, venv), Node 26 (npm, npx).
   - Android builds: OpenJDK 21, aapt2 / d8 / apksigner — build APKs on the phone.

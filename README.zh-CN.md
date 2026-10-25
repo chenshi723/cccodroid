@@ -75,7 +75,7 @@ cccodroid 让执行回到你自己的设备上：云端只负责模型推理，�
   - 可以继续添加任意第三方兼容接口。
   - 端侧小模型：装上 llama.cpp 组件，就能用本机跑的小模型聊天，不联网、不花钱。手机算力有限，干活还是交给云端模型。
   - **每个对话各用各的**：设置里的接口、型号、思考强度是默认值；在对话里单独选过的，只改这个对话。好几个对话可以同时跑，比如一个用 Claude 账户、一个用 DeepSeek，互不影响。
-- **完整的开发工具链**（300 多个包，取自 [Termux](https://termux.dev) 官方仓库）：
+- **完整的开发工具链**（约 250 个包，取自 [Termux](https://termux.dev) 官方仓库）：
   - C/C++：clang 21 / lld、make / cmake / ninja、gdb / strace。
   - 语言：Python 3.14（pip、venv）、Node 26（npm、npx）。
   - 安卓构建：OpenJDK 21、aapt2 / d8 / apksigner，可以在手机上打 APK。
