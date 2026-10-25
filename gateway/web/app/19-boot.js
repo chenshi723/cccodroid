@@ -25,6 +25,22 @@
   });
 
   $("btn-files").addEventListener("click", () => openFiles());
+  // 顶栏工具键横向折叠：「⋯」点开、「›」收回，记住上次的状态。展开时按可见顺序倒着编号（--i），离「⋯」最近的先出来
+  (() => {
+    const more = $("btn-more"), KEY = "cc.tbOpen", root = document.documentElement;
+    const set = (open) => {
+      [...document.querySelectorAll("#tb-tools .icon-btn:not(.hidden)")].reverse().forEach((b, i) => b.style.setProperty("--i", i));
+      root.classList.toggle("tb-open", open);
+      more.setAttribute("aria-expanded", String(open));
+      more.setAttribute("aria-label", t(open ? "收起工具" : "展开工具"));
+      try { localStorage.setItem(KEY, open ? "1" : "0"); } catch {}
+    };
+    // 打开应用时按上次的样子直接摆好，不放动画
+    root.classList.add("tb-still");
+    set((() => { try { return localStorage.getItem(KEY) === "1"; } catch { return false; } })());
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove("tb-still")));
+    more.addEventListener("click", () => set(!root.classList.contains("tb-open")));
+  })();
   $("btn-palette").addEventListener("click", () => { openCmdPalette(""); inputEl.focus(); });
   $("btn-close-drawer").addEventListener("click", () => { if (window.CCLayout && CCLayout.docked()) CCLayout.collapse(); closeDrawer(true); });
   drawerEl.addEventListener("click", (e) => { if (e.target === drawerEl) closeDrawer(); });
@@ -73,15 +89,27 @@
   $("btn-plus").addEventListener("click", openSheet);
   // 布局（layout.js）在浮层开合后会补发一次 resize，窗口其实没变 —— 只有宽度真变了才收，不然一开就闪没
   addEventListener("resize", () => { if (!sheetEl.classList.contains("hidden") && sheetEl.classList.contains("pop") && innerWidth !== sheetW) sheetEl.classList.add("hidden"); });
+  // 截屏格长按 0.5 秒 = 5 秒后截屏（帮助里有写）；长按触发后吞掉随后的那次 click
+  let shotHold = null, shotHeld = false;
+  sheetEl.addEventListener("pointerdown", (e) => {
+    if (!e.target.closest('.sheet-tile[data-act="shot"]')) return;
+    shotHeld = false;
+    clearTimeout(shotHold);
+    shotHold = setTimeout(() => { shotHeld = true; sheetEl.classList.add("hidden"); screenshot(5); }, 500);
+  });
+  for (const ev of ["pointerup", "pointercancel", "pointerleave"]) sheetEl.addEventListener(ev, () => clearTimeout(shotHold));
+  sheetEl.addEventListener("contextmenu", (e) => { if (e.target.closest('.sheet-tile[data-act="shot"]')) e.preventDefault(); });
   sheetEl.addEventListener("click", (e) => {
     if (e.target === sheetEl) { sheetEl.classList.add("hidden"); return; }
     const it = e.target.closest(".sheet-item, .sheet-tile");
     if (!it) return;
+    if (shotHeld) { shotHeld = false; return; }
     sheetEl.classList.add("hidden");
     const a = it.dataset.act;
     if (a === "new") return $("btn-new").click();
     if (a === "caps") return openPage("caps");
     if (a === "attach") return pickFiles();
+    if (a === "camera") return $("cam-input").click();
     if (a === "shot" || a === "shot5") return screenshot(a === "shot5" ? 5 : 0);
     if (a === "browse") return openFiles();
     if (a === "model" || a === "effort") return openModelPicker();
@@ -179,7 +207,24 @@
       if (window.CCApp && window.CCApp.unfreeze) { toast(t("正在重新挂载界面…")); window.CCApp.unfreeze(); }
       else toast(t("这个版本的应用还不能脱困，请更新应用；临时办法是重启网关"), true);
     }
-    $("btn-unfreeze").addEventListener("click", () => unfreeze("manual"));
+    // 手动脱困：长按顶栏标题 0.6 秒（按住时标题慢慢变淡，到点轻振一下）。冻住时点按照常能用，触摸事件也都收得到；
+    // 手指挪开 10px 或松手就取消。不另占一个按钮
+    (() => {
+      const tb = $("title-block");
+      let timer = 0, x0 = 0, y0 = 0;
+      const stop = () => { clearTimeout(timer); timer = 0; tb.classList.remove("lp"); };
+      tb.addEventListener("touchstart", (e) => {
+        if (e.touches.length !== 1) return stop();
+        x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+        tb.classList.add("lp");
+        clearTimeout(timer);
+        timer = setTimeout(() => { timer = 0; tb.classList.remove("lp"); try { navigator.vibrate && navigator.vibrate(12); } catch {} unfreeze("manual"); }, 600);
+      }, { passive: true });
+      tb.addEventListener("touchmove", (e) => { const p = e.touches[0]; if (timer && p && Math.hypot(p.clientX - x0, p.clientY - y0) > 10) stop(); }, { passive: true });
+      tb.addEventListener("touchend", stop);
+      tb.addEventListener("touchcancel", stop);
+      tb.addEventListener("contextmenu", (e) => e.preventDefault());
+    })();
     window.__ccUnfreeze = unfreeze;
 
     // 自动判定：单指竖向拖了 60px 以上、手指下的滚动容器明明还能往那个方向滚，
@@ -227,7 +272,7 @@
   })();
 
   // ── 竖屏横滑拉出侧栏 ───────────────────────────────────────────────
-  //  在对话区里从左往右滑（RTL 反过来）：侧栏跟着手指出来，松手时过了五分之一或轻轻一甩就展开，否则缩回去。
+  //  在对话区里从左往右滑（RTL 反过来；首屏时输入框和它下面那块不在 #chat 里，一并算进来，不然那片划不动）：侧栏跟着手指出来，松手时过了五分之一或轻轻一甩就展开，否则缩回去。
   //  贴边那一条留给系统的返回手势（安卓会先吃掉），这里管的是对话区里面起手的横滑。
   //  不抢的情况：常驻左栏（宽屏）、侧栏 / 整页 / 浮层已开、多指、在输入框 / 终端里、在拖选文字、
   //  手指下有还能往右滚的横向内容（代码块、表格滚过了就先让它滚回去）。
@@ -237,7 +282,7 @@
     if (!panel) return;
     const rtl = () => document.documentElement.dir === "rtl";
     const hScrollable = (el) => {
-      for (; el && el !== chatEl; el = el.parentElement)
+      for (; el && el !== document.body; el = el.parentElement)
         if (el.scrollWidth > el.clientWidth + 2 && /auto|scroll/.test(getComputedStyle(el).overflowX)
             && (rtl() ? el.scrollLeft < 0 : el.scrollLeft > 0)) return true;
       return false;
@@ -249,15 +294,16 @@
     // 手势开出来的侧栏把滑入动画关了（不然展开后再播一遍）；收起时还原，下次点菜单键照常有动画
     new MutationObserver(() => { if (drawerEl.classList.contains("hidden")) { panel.style.animation = ""; reset(); } })
       .observe(drawerEl, { attributes: true, attributeFilter: ["class"] });
-    chatEl.addEventListener("touchstart", (e) => {
+    const zones = [chatEl, $("composer"), $("wl-below")].filter(Boolean);
+    const onStart = (e) => {
       g = null;
       if (e.touches.length !== 1 || !drawerEl.classList.contains("hidden") || !$("pages").classList.contains("hidden")) return;
       if ((window.CCLayout && CCLayout.docked()) || OV.top() || document.querySelector("#sheet:not(.hidden), #popup:not(.hidden)")) return;
       if (e.target.closest("textarea,input,select,.xterm") || String(getSelection() || "").length || hScrollable(e.target)) return;
       const p = e.touches[0];
       g = { x: p.clientX, y: p.clientY, t: performance.now(), on: false, w: 0, dx: 0, lastX: p.clientX, lastT: performance.now(), v: 0 };
-    }, { passive: true });
-    chatEl.addEventListener("touchmove", (e) => {
+    };
+    const onMove = (e) => {
       if (!g || e.touches.length !== 1) { g = null; return; }
       const p = e.touches[0], dx = (p.clientX - g.x) * (rtl() ? -1 : 1), dy = p.clientY - g.y;
       if (!g.on) {
@@ -280,7 +326,7 @@
       const k = g.dx / g.w;
       panel.style.transform = `translateX(${(rtl() ? 1 : -1) * (g.w - g.dx)}px)`;
       scrim(k);
-    }, { passive: false });
+    };
     const end = () => {
       const s = g; g = null;
       if (!s || !s.on) return;
@@ -291,8 +337,12 @@
       scrim(open ? 0.999 : 0);
       setTimeout(() => { if (open) reset(); else closeDrawer(true); }, 190);
     };
-    chatEl.addEventListener("touchend", end, { passive: true });
-    chatEl.addEventListener("touchcancel", end, { passive: true });
+    for (const z of zones) {
+      z.addEventListener("touchstart", onStart, { passive: true });
+      z.addEventListener("touchmove", onMove, { passive: false });
+      z.addEventListener("touchend", end, { passive: true });
+      z.addEventListener("touchcancel", end, { passive: true });
+    }
 
     // 收回：侧栏开着时，在侧栏或遮罩上从右往左推（RTL 反过来），侧栏跟手退回去；推过五分之一或轻轻一甩就收起，否则弹回。
     // 同样先判方向（横向明显大于竖向才接管，竖着滑照常滚对话列表）；拖宽度的把手、输入框、能往左滚的横向内容不接管

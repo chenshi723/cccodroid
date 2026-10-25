@@ -51,6 +51,7 @@ import { routeCaps } from "./gw/caps.mjs";
 import { NEXT, sendJson, serveStatic } from "./gw/http.mjs";
 import { UPLOAD_DIR, routeFiles } from "./gw/files.mjs";
 import { routePreview } from "./gw/preview.mjs";
+import { startStreamFix } from "./gw/streamfix.mjs";
 import { TERMS, routeTerminal } from "./gw/terminal.mjs";
 import { routeGit } from "./gw/git.mjs";
 import { routeComponents } from "./gw/components.mjs";
@@ -73,13 +74,22 @@ import { routeProjects } from "./gw/projects.mjs";
 import { routeSched } from "./gw/sched.mjs";
 import { routeSessModel } from "./gw/sessmodel.mjs";
 import { COOKIE, TOKEN, denyLog, denyReason, tokenOk } from "./gw/access.mjs";
+import { startWorkIsland, stopWorkIslandSync } from "./gw/work-island.mjs";
 
 // 各模块的路由函数，按原来分支的先后排；返回 NEXT 表示不归它管
 const ROUTES = [routeClaude, routeFeedback, routeUsage, routeCaps, routeProviders, routeSettings, routeProjects, routeSched, routeSessModel, routeSessions, routeExtensions, routeModels, routeTerminal, routeComponents, routeModules, routeOrphans, routeCustom, routeGit, routeLocal, routeOffice, routeFiles, routePreview, routeBus, routeQueue, routeDevside, routeLogin, routeRun, routeNotices, routeReconcile];
 
 // ── 路由 ──────────────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
-  const u = new URL(req.url, `http://127.0.0.1:${CFG.port}`);
+  // 请求目标畸形（如 "//["）时 new URL 会抛；这一步在鉴权之前，不兜住的话本机任何应用发一个请求就能让网关退出
+  let u;
+  try {
+    if (!String(req.url || "").startsWith("/")) throw new Error("bad target");
+    u = new URL(req.url, `http://127.0.0.1:${CFG.port}`);
+  } catch {
+    req.resume();
+    return sendJson(res, 400, { error: "bad request" });
+  }
   const p = u.pathname;
 
   const deny = denyReason(req, u);
@@ -112,6 +122,10 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// 最后一道兜底：哪个异步分支漏了 catch，记一笔日志，别让整个网关退出。
+// 不接 uncaughtException：孤儿网关往断掉的 stdout 写日志时靠 EPIPE 异常退出，接住了它就死不掉
+process.on("unhandledRejection", (e) => log(`未处理的 Promise 拒绝: ${(e && e.stack) || e}`));
+
 // ── 启动 ──────────────────────────────────────────────────────────────
 try { fs.mkdirSync(CFG.workspace, { recursive: true }); } catch {}
 // /sdcard 上的文件属主是系统（media_rw），git 会以 "dubious ownership" 拒绝操作那里的仓库。
@@ -125,6 +139,7 @@ if (PREFIX) {
 }
 try { fs.mkdirSync(CFG.home, { recursive: true }); } catch {}
 try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }); } catch {}
+startStreamFix();
 
 server.listen(CFG.port, "127.0.0.1", () => {
   log(`claude-apk 网关 v3 已启动  http://127.0.0.1:${CFG.port}`);
@@ -146,6 +161,7 @@ server.listen(CFG.port, "127.0.0.1", () => {
   try { expireTrash(); } catch (e) { log("回收站清理失败: " + e.message); }
   try { customRefresh(); } catch (e) { log("自定义组件入口重写失败: " + e.message); }
   try { cleanOrphans(); } catch (e) { log("旧工具包残留清理失败: " + e.message); }
+  try { startWorkIsland(); } catch (e) { log("工作岛启动失败: " + e.message); }
 });
 
 // 启动后校验一次模型名：不在清单里就落到默认。
@@ -166,5 +182,6 @@ setTimeout(async () => {
   } catch (e) { log(`模型校验失败: ${e.message}`); }
 }, 2500);
 
-process.on("SIGTERM", () => { for (const t of TERMS.values()) if (t.alive) killTree(t.child); try { bridgeProc?.kill(); } catch {} process.exit(0); });
-process.on("SIGINT", () => { try { bridgeProc?.kill(); } catch {} process.exit(0); });
+// 工作岛的收起放最后：它要同步调 am（最多 3 秒），App 等 5 秒就强杀，先把 claude 和终端收了
+process.on("SIGTERM", () => { for (const t of TERMS.values()) if (t.alive) killTree(t.child); try { bridgeProc?.kill(); } catch {} try { stopWorkIslandSync(); } catch {} process.exit(0); });
+process.on("SIGINT", () => { try { bridgeProc?.kill(); } catch {} try { stopWorkIslandSync(); } catch {} process.exit(0); });

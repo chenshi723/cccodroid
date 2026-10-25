@@ -7,11 +7,14 @@ const [base, out] = process.argv.slice(2);
 if (!base || !out) { console.error("用法: node pin-devkit.mjs <base/> <out.json>"); process.exit(2); }
 const r = await fetch(base.replace(/\/?$/, "/") + "devkit.lock.json", { redirect: "follow" });
 if (!r.ok) { console.error(`✗ 取不到清单：HTTP ${r.status}`); process.exit(1); }
-const lock = await r.json();
+const lockBuf = Buffer.from(await r.arrayBuffer());
+const lock = JSON.parse(lockBuf.toString("utf8"));
 const tag = (base.match(/\/download\/([^/]+)\/?$/) || [])[1] || "";
 const pick = (o) => o && { file: o.file, sha256: o.sha256, bytes: o.bytes };
 const pin = { tag, base: base.replace(/\/?$/, "/"), target: lock.target, compat: lock.compat ?? 1, gz: pick(lock.gz), tar: pick(lock.tar) };
 if (!pin.gz || !/^[0-9a-f]{64}$/.test(pin.gz.sha256 || "")) { console.error("✗ 清单里没有 gz 的 sha256"); process.exit(1); }
+// 锁文件本身也钉上（审计 M-2c）：build.sh 靠它挑 glibc 包抽 ld.so，不能只靠下载时的 TLS
+pin.lock = { file: "devkit.lock.json", sha256: (await import("node:crypto")).createHash("sha256").update(lockBuf).digest("hex"), bytes: lockBuf.length };
 // 模块化 Release（0.3.9 起）另有 modules.json：钉它的 sha256，里面又有每块的 sha256，首装勾哪几块都核得上
 const mr = await fetch(pin.base + "modules.json", { redirect: "follow" });
 if (mr.ok) {
@@ -19,4 +22,4 @@ if (mr.ok) {
   pin.modules = { file: "modules.json", sha256: (await import("node:crypto")).createHash("sha256").update(b).digest("hex"), bytes: b.length };
 }
 fs.writeFileSync(out, JSON.stringify(pin, null, 1) + "\n");
-console.log(`✓ ${out}：${tag} gz ${pin.gz.sha256.slice(0, 12)}…${pin.modules ? ` · modules.json ${pin.modules.sha256.slice(0, 12)}…` : "（整包，没有模块）"}`);
+console.log(`✓ ${out}：${tag} gz ${pin.gz.sha256.slice(0, 12)}… · lock ${pin.lock.sha256.slice(0, 12)}…${pin.modules ? ` · modules.json ${pin.modules.sha256.slice(0, 12)}…` : "（整包，没有模块）"}`);

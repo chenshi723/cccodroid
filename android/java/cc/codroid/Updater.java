@@ -42,6 +42,8 @@ final class Updater {
     /** 备用源：cccodroid.net 镜像了最近几个版本的 APK 和一份同形状的发布列表（dl/releases.json）。
      *  只在 GitHub 连不上 / 下载不顺时用；下来的 APK 照样核 sha256 和签名。工具包太大，没有镜像 */
     static final String MIRROR = "https://cccodroid.net";
+    /** 同一份 APK 与发布列表的直连线路（不经 Cloudflare；国内有的网络只通其中一条） */
+    static final String DL = "https://dl.cccodroid.net";
     /** 工具包与本 APK 的接口版本：lock.json 里的 compat（缺省 1）对不上就不装，防止新工具包配旧外壳 */
     static final int DEVKIT_COMPAT = 1;
     static final String CH = "updates";
@@ -66,7 +68,7 @@ final class Updater {
         volatile String current = "", latest = "", state = "unknown", message = "";
         volatile long done, total;
         // 下载需要的东西
-        volatile String url, alt, sha, base, tarSha;
+        volatile String url, alt, alt2, sha, base, tarSha;
         volatile long size, need;
         volatile File file;
         // 模块化工具包（0.3.9 起）：modules.json 原文、它的 sha256、要装的模块。file 指向落盘的 modules.json（全部块下完才写，等于「已下好」的记号）
@@ -114,6 +116,16 @@ final class Updater {
     void dropStagedIfInstalled() {
         if (!"ready".equals(devkit.state) || devkit.sha == null || !devkit.sha.equals(installedDevkitSha())) return;
         if (devkit.file != null) devkit.file.delete();
+        // 按块下好的压缩包也删（几百 MB）；已经装进去的那几块，installModules 解完就删过了
+        if (devkit.modules != null) try {
+            JSONArray all = new JSONObject(new String(devkit.modules, StandardCharsets.UTF_8)).optJSONArray("modules");
+            for (int i = 0; all != null && i < all.length(); i++) {
+                JSONObject gz = all.optJSONObject(i) == null ? null : all.optJSONObject(i).optJSONObject("gz");
+                if (gz == null) continue;
+                new File(env.files, gz.optString("file")).delete();
+                new File(env.files, gz.optString("file") + ".part").delete();
+            }
+        } catch (Exception ignored) {}
         prefs().edit().remove("devkitStaged").apply();
         refreshCurrent();
         devkit.set("uptodate", "");
@@ -325,19 +337,25 @@ final class Updater {
         catch (Exception e) {
             lastError = Tr.t("连不上 GitHub：") + e.getMessage();
             // GitHub 不通：应用本身改看镜像的发布列表；工具包没有镜像，如实说查不了（别报成"已是最新"）
-            try { rels = new JSONArray(new String(Installer.httpGetSmall(MIRROR + "/dl/releases.json"), StandardCharsets.UTF_8)); mirror = true; }
-            catch (Exception e2) { app.set("error", lastError); }
+            for (String m : new String[]{ MIRROR, DL }) {
+                try { rels = new JSONArray(new String(Installer.httpGetSmall(m + "/dl/releases.json"), StandardCharsets.UTF_8)); mirror = true; break; }
+                catch (Exception e2) { /* 换下一条 */ }
+            }
+            if (rels == null) app.set("error", lastError);
             if (pinnedInstalled()) devkit.set("uptodate", Tr.t("已是本应用配套的版本（GitHub 连不上，暂时查不了更新的）"));
             else devkit.set("error", lastError);
         }
         if (rels != null) {
             try { checkApp(rels); if (mirror && !"error".equals(app.state)) app.message = app.message.isEmpty() ? Tr.t("来自 cccodroid.net 镜像") : app.message + Tr.t(" · 来自 cccodroid.net 镜像"); }
             catch (Exception e) { app.set("error", e.getMessage()); }
-            if (!mirror) try { checkDevkit(rels); } catch (Exception e) { devkit.set("error", e.getMessage()); }
+            // 首装还没完成（工具包没装好）就别查工具包：那时读不到已装的模块，planModules 会按「整包用户」规划成全部模块，
+            // 自动更新在 Wi‑Fi 下把它们全下好，首装刚按勾选装完，启动流程又把这份「已下载的更新」装上 —— 勾了两个、装了八个（群友 10-24）
+            if (!env.devkitReady()) devkit.set("uptodate", Tr.t("首次安装进行中"));
+            else if (!mirror) try { checkDevkit(rels); } catch (Exception e) { devkit.set("error", e.getMessage()); }
         }
         try { checkClaude(); } catch (Exception e) { claude.set("error", Tr.t("连不上 downloads.claude.ai：") + e.getMessage()); }
         prefs().edit().putLong("lastCheck", System.currentTimeMillis()).apply();
-        if (auto() && !manual) autoApply();
+        if (auto() && !manual && env.devkitReady()) autoApply();      // 首装期间不自动装任何东西，Claude Code 也由首装流程来装
         releaseApp();         // 工具包停在"已下载"没去装（比如有任务在跑）时，别让 APK 一直等着
     }
 
@@ -358,6 +376,7 @@ final class Updater {
                 if (!a.optString("name").equals(name)) continue;
                 app.url = a.getString("browser_download_url");
                 app.alt = app.url.startsWith(MIRROR + "/") ? null : MIRROR + "/dl/" + tag + "/" + name;
+                app.alt2 = DL + "/dl/" + tag + "/" + name;
                 app.size = a.optLong("size");
                 String d = a.optString("digest", "");
                 app.sha = d.startsWith("sha256:") ? d.substring(7) : null;
@@ -486,6 +505,7 @@ final class Updater {
         // 版本号：官方 → cccodroid.net 镜像 → npm 镜像的 dist-tags（Anthropic 在 npm 上用同名的 stable / latest 标签）。
         // 这里只是「有没有新版」；真正下载时 install-claude.mjs 会按官方清单的 sha256 或 npm 签名校验
         String v = null, why = "";
+        claudeHeld = false;
         // 固定版本时只顺带查 stable 到了哪一版（提示用），查不到也不算错
         final String ch = pinned() ? "stable" : channel();
         String[] urls = { "https://downloads.claude.ai/claude-code-releases/" + ch, "https://cccodroid.net/claude-code/" + ch, "https://dl.cccodroid.net/claude-code/" + ch,
@@ -522,11 +542,34 @@ final class Updater {
             if (c == 0) claude.set("uptodate", tag);
             else if (c > 0 || claude.current.isEmpty()) claude.set("available", tag);
             else claude.set("available", Tr.f("切回 {0} 渠道：将换成 {1}（比当前的 {2} 旧）", channel(), v, claude.current));
+            // 维护者标成「有已知问题」的版本：先不自动装，写明原因；用户自己点更新照样装
+            String bad = c != 0 ? knownBad(v) : null;
+            claudeHeld = bad != null;
+            if (bad != null) claude.set("available", Tr.f("{0} 有已知问题，没有自动更新：{1}", v, bad));
         }
         // 当初只能靠 npm 签名装上、后来按官方清单补核又对不上的（网关 install-claude.mjs --recheck 留下 .mismatch）：
         // 当成「有更新」，点更新（或自动更新）就从头重下这一版，装之前按官方清单核 sha256
         if (!"installing".equals(claude.state) && new File(env.home, ".local/share/cccodroid/claude/current/.mismatch").isFile())
             claude.set("available", Tr.t("这一版与官方清单的 sha256 对不上，点更新重新下载"));
+    }
+
+    /** 渠道上的新版被标成有问题时为 true：autoApply 不装它 */
+    private volatile boolean claudeHeld;
+
+    /**
+     * 维护者标成「有已知问题」的 Claude Code 版本（scripts/claude-verified.mjs 发布、网关 gw/ccverified.mjs 验过签存在 home 里的那份）。
+     * 返回原因（按界面语言，中文以外都用英文），没标就返回 null。文件不在、读不了都当没标：只少一道提醒，不挡更新
+     */
+    private String knownBad(String v) {
+        try {
+            File f = new File(env.home, ".cache/cccodroid/claude-verified.json");
+            if (!f.isFile()) return null;
+            JSONObject bad = new JSONObject(new String(java.nio.file.Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8)).optJSONObject("bad");
+            JSONObject e = bad == null ? null : bad.optJSONObject(v);
+            if (e == null) return null;
+            String zh = e.optString("zh", ""), en = e.optString("en", "");
+            return Tr.lang().startsWith("zh") && !zh.isEmpty() ? zh : !en.isEmpty() ? en : zh;
+        } catch (Exception ex) { return null; }
     }
 
     /** 发布列表地址。home/.config/cccodroid/update-feed 里写了地址就用它（测试更新流程用，形状同 GitHub API） */
@@ -540,7 +583,7 @@ final class Updater {
     /** 自动模式的规则：见类注释 */
     private void autoApply() {
         boolean unmetered = !ctx.getSystemService(ConnectivityManager.class).isActiveNetworkMetered();
-        if ("available".equals(claude.state) && unmetered) apply("claude", false);
+        if ("available".equals(claude.state) && unmetered && !claudeHeld) apply("claude", false);
         if ("available".equals(app.state)) apply("app", false);              // 几 MB，什么网都下
         else if ("ready".equals(app.state)) maybeSilentInstallApp();
         if ("available".equals(devkit.state) && unmetered) apply("devkit", false);
@@ -614,7 +657,7 @@ final class Updater {
                 if (free < need) throw new IOException(String.format(java.util.Locale.ROOT, Tr.t("空间不够：需要约 %.1f GB，只剩 %.1f GB"), need / 1e9, free / 1e9));
             }
             if (it == devkit && it.modules != null) downloadModules(it);
-            else installer(it).download(it.url, it.alt, it.file, it.size, it.sha);
+            else installer(it).download(it.url, new String[]{ it.alt, it.alt2 }, it.file, it.size, it.sha);
             if (it == app) checkApkSigner(it.file);
             if (it == devkit) {
                 JSONObject st = new JSONObject().put("file", it.file.getPath())

@@ -246,11 +246,13 @@
         <button class="btn sm" data-missed="run" data-id="${esc(m.taskId)}" data-at="${m.at}">${esc(t("现在补跑"))}</button><button class="btn sm ghost" data-missed="skip" data-id="${esc(m.taskId)}" data-at="${m.at}">${esc(t("算了"))}</button></div>` : ""; }).join("");
     const list = tasks.filter((x) => SC.flt === "all" || (SC.flt === "on" ? x.on : !x.on));
     const running = new Set(D.running || []);
+    const blocked = new Set(D.allowLogin ? [] : D.loginTasks || []);    // 要用订阅账户、开关又没开：到点会跳过
     const row = (x) => {
       const p = x.projectId && pjById(x.projectId);
       const last = running.has(x.id) ? `<span class="pill acc">${esc(t("在跑"))}</span>` : x.last ? `<span class="pill ${x.last.st === "ok" ? "ok" : x.last.st === "err" ? "err" : ""}">${x.last.st === "ok" ? pi("check") : x.last.st === "err" ? pi("x") : ""}${esc(whenText(x.last.at))}</span>` : `<span class="pill">${esc(t("没跑过"))}</span>`;
+      const lk = blocked.has(x.id) ? `<span class="pill err">${esc(t("订阅账户 · 不会跑"))}</span>` : "";
       return `<div class="row pj-row" data-task="${esc(x.id)}"><div class="grow"><div class="t1">${esc(x.name)}</div>
-        <div class="muted pj-sub">${esc(freqText(x.freq))}${p ? " · " + pjMark(p) : ""} · ${esc(x.on ? (x.nextAt ? t("下次 {w}", { w: whenText(x.nextAt) }) : t("不会再跑")) : t("已关"))}</div></div>${last}${swHtml(x.on, `data-sw="${esc(x.id)}" aria-label="${esc(t("开关"))}"`)}</div>`;
+        <div class="muted pj-sub">${esc(freqText(x.freq))}${p ? " · " + pjMark(p) : ""} · ${esc(x.on ? (x.nextAt ? t("下次 {w}", { w: whenText(x.nextAt) }) : t("不会再跑")) : t("已关"))}</div></div>${lk}${last}${swHtml(x.on, `data-sw="${esc(x.id)}" aria-label="${esc(t("开关"))}"`)}</div>`;
     };
     const b = D.budget || {}, daily = b.daily || 0, today = b.today || 0, m = b.month || {};
     const pct = daily ? Math.min(100, today / daily * 100) : 0;
@@ -262,6 +264,9 @@
       <div class="panel"><div class="row"><div class="grow"><b>${esc(daily ? t("今天 {a} / 每日上限 {b}", { a: costText(today), b: costText(daily) }) : t("今天 {a} · 不设每日上限", { a: costText(today) }))}</b>
           ${daily ? `<div class="bar-mini"><i style="width:${pct.toFixed(1)}%"></i></div>` : ""}<div class="muted pj-sub">${esc(t("到上限后当天其余任务跳过，并通知你。第三方接口多数不回报花费，按 0 记。"))}</div></div><button class="btn sm ghost" data-a="budget">${esc(t("改上限"))}</button></div>
         <div class="row"><div class="grow"><b>${esc(t("本月 {c} · 跑了 {n} 次", { c: costText(m.cost || 0), n: m.runs || 0 }))}</b><div class="muted pj-sub">${esc(t("成功 {a} · 失败 {b} · 跳过 {c}", { a: m.ok || 0, b: m.err || 0, c: m.skip || 0 }))}</div></div></div></div>
+      <div class="pj-sec"><span class="grow">${esc(t("订阅账户"))}</span></div>
+      <div class="panel"><div class="row"><div class="grow"><b>${esc(t("允许用订阅账户跑"))}</b><div class="muted pj-sub">${esc(t("官方登录的订阅账户默认不跑定时任务。打开前请自己确认：无人值守使用以 Anthropic 条款为准。用 API Key 的接口不受影响。"))}</div>
+          ${blocked.size ? `<div class="muted pj-sub warn">${esc(t("{n} 个任务会用订阅账户，现在不会跑", { n: blocked.size }))}</div>` : ""}</div>${swHtml(!!D.allowLogin, `data-swlogin="1" aria-label="${esc(t("允许用订阅账户跑"))}"`)}</div></div>
       <div class="pj-sec"><span class="grow">${esc(t("叫醒"))}</span></div>
       <div class="panel"><div class="row"><div class="grow"><b>${esc(t("App 活着就准点跑"))}</b><div class="muted pj-sub">${esc(t("计时在网关里：App 开着或在后台运行时到点就跑；被系统清掉、关机时会错过，下次打开按任务的「错过了」设置处理。"))}</div></div></div>
         <div class="row"><div class="grow"><b>${esc(t("后台运行"))}</b><div class="muted pj-sub">${esc(t("锁屏后要能接着跑完，得允许后台运行、不被省电策略冻结"))}</div></div><button class="btn sm ghost" data-a="bgset">${esc(t("去设置"))}</button></div></div>`;
@@ -333,6 +338,13 @@
     if (name === "rflt") { SC.rflt = sb.dataset.v; renderSched(); }
   });
   $("tab-sched").addEventListener("change", async (e) => {
+    const sl = e.target.closest("[data-swlogin]");
+    if (sl) {
+      if (sl.checked && !confirm(t("用订阅账户跑定时任务？\n\n定时任务会在没人看着的时候自动跑。无人值守使用以 Anthropic 条款为准，请自己确认你的用法符合条款；条款以后收紧，这一项可能要关掉。"))) { sl.checked = false; return; }
+      try { await jsend("/api/sched/allow-login", { on: sl.checked }, "PUT"); toast(sl.checked ? t("已允许用订阅账户跑定时任务") : t("已关闭：订阅账户不跑定时任务")); }
+      catch (err) { sl.checked = !sl.checked; toast(err.message, true); }
+      return loadSched();
+    }
     const sw = e.target.closest("[data-sw]");
     if (sw) {
       try { const r = await jsend("/api/sched/" + encodeURIComponent(sw.dataset.sw), { on: sw.checked }, "PATCH"); toast(sw.checked ? t("已打开：{f}", { f: freqText(r.task.freq) }) : t("已关掉")); if (SC.detail) SC.detail.task = { ...SC.detail.task, ...r.task }; }

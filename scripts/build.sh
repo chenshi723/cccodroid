@@ -82,13 +82,19 @@ $D8 --release --min-api 26 \
   --lib "$AJAR" --output "$A/build" $(find "$A/build/classes" -name '*.class') "$ROOT"/third_party/shizuku/*.jar
 
 # 「经加载器」要的 glibc ld.so：targetSdk 36 只能 exec APK 原生库目录里的文件，ld.so 就以 libldlinux.so 进 lib/。
-# 取钉住那一版工具包锁文件里的同一个 glibc 包（核 sha256）—— ld.so 与工具包里的 libc.so.6 必须出自同一次构建
+# 取钉住那一版工具包锁文件里的同一个 glibc 包（核 sha256）—— ld.so 与工具包里的 libc.so.6 必须出自同一次构建。
+# 仓库里 android/prebuilt/glibc 存了一份，和锁文件对得上就不联网
 PIN_BASE=$(node -p 'require(process.argv[1]).base' "$A/assets/devkit-pin.json")
 PIN_TARGET=$(node -p 'require(process.argv[1]).target' "$A/assets/devkit-pin.json")
 LOCK="$ROOT/devkit/cache/lock-$(node -p 'require(process.argv[1]).tag' "$A/assets/devkit-pin.json").json"
 mkdir -p "$ROOT/devkit/cache" "$A/build/lib/arm64-v8a"
 [ -s "$LOCK" ] || curl -fsSL --retry 3 -o "$LOCK" "${PIN_BASE}devkit.lock.json"
-node "$ROOT/devkit/devkit.mjs" ldso --lock "$LOCK" --target "$PIN_TARGET" --release "$PIN_BASE" --out "$A/build/lib/arm64-v8a/libldlinux.so"
+# 锁文件只靠 TLS 不够（审计 M-2c）：对 devkit-pin.json 里钉的 sha256，对不上就删掉缓存、停下
+node -e 'const fs=require("fs"),c=require("crypto");const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+if(!p.lock||!/^[0-9a-f]{64}$/.test(p.lock.sha256||"")){console.error("✗ devkit-pin.json 里没有 lock 的 sha256：跑 node scripts/pin-devkit.mjs 重新生成");process.exit(1)}
+const h=c.createHash("sha256").update(fs.readFileSync(process.argv[2])).digest("hex");
+if(h!==p.lock.sha256){fs.rmSync(process.argv[2],{force:true});console.error("✗ devkit.lock.json 的 sha256 是 "+h+"，钉的是 "+p.lock.sha256+"（已删缓存）");process.exit(1)}' "$A/assets/devkit-pin.json" "$LOCK" || exit 1
+node "$ROOT/devkit/devkit.mjs" ldso --lock "$LOCK" --target "$PIN_TARGET" --release "$PIN_BASE" --vendored "$A/prebuilt/glibc" --out "$A/build/lib/arm64-v8a/libldlinux.so"
 
 echo "▸ aapt2 + 签名"
 mkdir -p "$OUT"

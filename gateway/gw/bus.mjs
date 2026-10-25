@@ -1,3 +1,4 @@
+import { LIVE } from "./config.mjs";
 import { RUNS, runList } from "./runs.mjs";
 import { NEXT, sendJson, uiTag } from "./http.mjs";
 import { flushPend, snapshot } from "./queue.mjs";
@@ -14,12 +15,21 @@ import { flushPend, snapshot } from "./queue.mjs";
 export const BOOT = Date.now().toString(36);
 const BUS = { seq: 0, ring: [], clients: new Set() };
 const RING_MAX = 4000;
+// 进程内订阅者：可选集成（如工作岛）不用再开一条 HTTP SSE，也不占令牌。
+const SUBSCRIBERS = new Set();
+
+/** 订阅每个事件；返回取消订阅的函数。订阅者出错不影响主流程。 */
+export function onPublish(fn) {
+  SUBSCRIBERS.add(fn);
+  return () => SUBSCRIBERS.delete(fn);
+}
 
 export function publish(ev) {
   const seq = ++BUS.seq;
   const line = `id: ${BOOT}.${seq}\ndata: ${JSON.stringify(ev)}\n\n`;
   BUS.ring.push({ seq, line });
   if (BUS.ring.length > RING_MAX) BUS.ring.splice(0, BUS.ring.length - RING_MAX);
+  for (const fn of SUBSCRIBERS) { try { fn(ev); } catch {} }
   for (const c of BUS.clients) busWrite(c, line);
 }
 function busWrite(res, line) {
@@ -29,7 +39,7 @@ function busWrite(res, line) {
     res.write(line);
   } catch { BUS.clients.delete(res); }
 }
-setInterval(() => { for (const c of BUS.clients) busWrite(c, ": hb\n\n"); }, 15000).unref();
+if (LIVE) setInterval(() => { for (const c of BUS.clients) busWrite(c, ": hb\n\n"); }, 15000).unref();
 
 // ── 路由：/api/events /api/state ──
 export async function routeBus(req, res, u, p) {

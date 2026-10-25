@@ -2,12 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn, execFile } from "node:child_process";
 import crypto from "node:crypto";
-import { CFG, LAST_LANG, PREFIX, log, tr, tz } from "./config.mjs";
+import { CFG, LIVE, LAST_LANG, PREFIX, log, tr, tz } from "./config.mjs";
 import { claudeEnv, killTree } from "./claude.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { termEnv } from "./terminal.mjs";
 import { SKILLS_DIR, skillMeta } from "./extensions.mjs";
 import { modulesMissingFor } from "./modules.mjs";
+import { ghProxy, pget } from "./pget.mjs";
 
 /** 前端文件（web/ 下全部，含 i18n.js 与各语言词典）的最后修改时间戳。界面拿它来判断「我是不是该刷新了」——
  *  这样以后只改 web/ 也能自动生效，不用重开 App。 */
@@ -45,27 +46,39 @@ function compWriteRecord(id, rec) {
   fs.renameSync(compRecFile(id) + ".tmp", compRecFile(id));
 }
 
-function compFetch(src) {
+function compFetch(src, quick) {
+  // quick：拉索引用——连不上 8 秒就放弃、只重试一次，好尽快换镜像（GitHub 被墙时以前要干等一分多钟）
+  const t = quick ? ["--connect-timeout", "8", "--max-time", "20", "--retry", "1"] : ["--max-time", "30", "--retry", "2"];
   return new Promise((resolve, reject) => {
-    execFile(path.join(PREFIX, "bin", "curl"), ["-fsSL", "--max-time", "30", "--retry", "2", src],
+    execFile(path.join(PREFIX, "bin", "curl"), ["-fsSL", ...t, src],
       { env: claudeEnv(), maxBuffer: 4 << 20, encoding: "buffer" },
       (e, so, se) => (e ? reject(new Error(String(se || e.message).trim().slice(0, 200))) : resolve(so)));
   });
 }
 // 备用源：cccodroid.net 镜像了两份索引（连同 .sig，逐字节同 GitHub）。主地址拉不到才用；照样验签，镜像不需要被信任
-const COMP_INDEX_MIRROR = { preset: "https://cccodroid.net/components/official/components.json",
-  community: "https://cccodroid.net/components/community/components.json" };
+const COMP_INDEX_MIRROR = { preset: process.env.CCAPP_COMPONENTS_INDEX_MIRROR || "https://cccodroid.net/components/official/components.json",
+  community: process.env.CCAPP_COMPONENTS_COMMUNITY_INDEX_MIRROR || "https://cccodroid.net/components/community/components.json" };   // 环境变量只给测试用
 /** 取一份索引并验签。unsigned 只在私有目录里有 allow-unsigned 开关文件时才放行（/sdcard 别的应用也能写） */
+// 上回主地址拉不到、靠镜像拉到的：这回先试镜像（记在磁盘缓存里，重开 App 也记得）
+// 镜像地址 → 改用镜像的时刻（两份索引各记各的）；一天后重新先试主地址——镜像是定时同步的，可能比 GitHub 晚一拍
+let compIndexViaMirror = {};
 async function compFetchIndex(src, mirror) {
   let body;
-  try { body = await compFetch(src); }
-  catch (e) {
-    if (!mirror) throw e;
-    try { body = await compFetch(mirror); src = mirror; } catch { throw e; }
-    log(`组件索引改用镜像：${mirror}`);
+  const preferMirror = mirror && Date.now() - (compIndexViaMirror[mirror] || 0) < 24 * 3600e3;
+  const order = preferMirror ? [mirror, src] : [src, mirror].filter(Boolean);
+  let first;
+  for (const u of order) {
+    try { body = await compFetch(u, true); src = u; break; }
+    catch (e) { first = first || e; }
+  }
+  if (body === undefined) throw first;
+  if (mirror) {
+    if ((src === mirror) !== !!compIndexViaMirror[mirror]) log(src === mirror ? `组件索引改用镜像：${mirror}` : `组件索引回到主地址：${order.find((u) => u !== mirror)}`);
+    if (src !== mirror) delete compIndexViaMirror[mirror];
+    else if (!preferMirror) compIndexViaMirror[mirror] = Date.now();     // 刚换过来才记时刻，一直走镜像不续期
   }
   let sig = null;
-  try { sig = Buffer.from(String(await compFetch(src + ".sig")).trim(), "base64"); } catch {}
+  try { sig = Buffer.from(String(await compFetch(src + ".sig", true)).trim(), "base64"); } catch {}
   const ok = sig && sig.length === 64 && crypto.verify(null, body, COMP_INDEX_PUBKEY, sig);
   if (!ok && !fs.existsSync(path.join(COMP_DIR, "allow-unsigned"))) throw new Error(sig ? tz("索引签名不对，已拒绝") : tz("索引没有签名，已拒绝"));
   return { ...JSON.parse(String(body)), signed: !!ok };
@@ -73,10 +86,38 @@ async function compFetchIndex(src, mirror) {
 
 /** 两个来源合并：预置（cccodroid 仓库）在前，社区（cccodroid-components）在后；id 撞了以预置为准。
  *  共享目录里放了 components/components.json 就代替预置来源（离线 / 测试），同样要签名。 */
+// 磁盘缓存：上回验过签的合并索引存一份，重开 App 后扩展页先拿它出列表，不用等网络（群友：每次重开组件栏都要等好久）。
+// 文件在私有目录（和已装记录同处、同等可信）；名字别以 .json 结尾——COMP_DIR 里的 *.json 都当已装记录读
+const compCacheFile = () => COMP_DIR && path.join(COMP_DIR, "index.cache");
+function compLoadDiskCache() {
+  if (compIndexCache.data || !compCacheFile()) return;
+  try {
+    const c = JSON.parse(fs.readFileSync(compCacheFile(), "utf8"));
+    if (c && c.data && c.data.components) { compIndexCache = { at: c.at || 0, data: c.data, error: "" }; compIndexViaMirror = c.viaMirror && typeof c.viaMirror === "object" ? c.viaMirror : {}; }
+  } catch {}
+}
+function compSaveDiskCache() {
+  if (!compCacheFile() || !compIndexCache.data) return;
+  try {
+    fs.mkdirSync(COMP_DIR, { recursive: true });
+    fs.writeFileSync(compCacheFile() + ".tmp", JSON.stringify({ at: compIndexCache.at, viaMirror: compIndexViaMirror, data: compIndexCache.data }));
+    fs.renameSync(compCacheFile() + ".tmp", compCacheFile());
+  } catch {}
+}
+
+let compIndexInflight = null;
 export async function compIndex(force) {
-  // force：true = 必拉；数字 = 缓存超过这么多毫秒才拉（打开扩展页用，刚合并的验证记录不用等 10 分钟）
+  // force：true = 必拉、等结果（「检查更新」）；数字 = 缓存超过这么多毫秒就该拉（打开扩展页用，刚合并的验证记录不用等 10 分钟）
   const maxAge = typeof force === "number" ? force : force ? -1 : 10 * 60e3;
+  compLoadDiskCache();
   if (compIndexCache.data && Date.now() - compIndexCache.at < maxAge) return compIndexCache;
+  if (!compIndexInflight) compIndexInflight = compIndexFetch().finally(() => { compIndexInflight = null; });
+  // 手里有旧的、又不是「检查更新」：先拿旧的回去，后台接着拉（refreshing 告诉前端过会儿再要一次）
+  if (compIndexCache.data && force !== true) { compIndexInflight.catch(() => {}); return { ...compIndexCache, refreshing: true }; }
+  return compIndexInflight;
+}
+
+async function compIndexFetch() {
   const local = process.env.CCAPP_SHARED && path.join(process.env.CCAPP_SHARED, "components", "components.json");
   const sources = [
     { source: "preset", url: local && fs.existsSync(local) ? "file://" + local : COMP_INDEX },
@@ -95,6 +136,7 @@ export async function compIndex(force) {
   compIndexCache = anyOk || !compIndexCache.data
     ? { at: errors.length ? Date.now() - 9 * 60e3 : Date.now(), data: { components }, error: errors.join("；") }   // 有失败的一分钟后再试
     : { at: Date.now() - 9 * 60e3, data: compIndexCache.data, error: errors.join("；") };
+  if (anyOk) compSaveDiskCache();
   return compIndexCache;
 }
 
@@ -171,7 +213,7 @@ async function compList(force) {
       unsupported: compUnsupported(e),
     };
   });
-  return { supported: true, devkit: dk ? (dk.sha256 || "").slice(0, 12) : null, indexError: ix.error, items };
+  return { supported: true, devkit: dk ? (dk.sha256 || "").slice(0, 12) : null, indexError: ix.error, refreshing: !!ix.refreshing, items };
 }
 
 export function sha256File(f, job) {
@@ -379,7 +421,7 @@ function compHealSkills() {
 }
 
 // 启动后预取一次索引：首次打开「扩展」页时不用干等两份索引下载验签
-if (PREFIX) setTimeout(() => { compHealSkills(); compIndex(false).catch(() => {}); }, 8000).unref?.();
+if (PREFIX && LIVE) setTimeout(() => { compHealSkills(); compIndex(false).catch(() => {}); }, 8000).unref?.();
 
 // 暂存区是所有组件共用的：只清这一个组件自己的东西（<id>-<sha12>.tar.gz[.part] 和解包目录 <id>）。
 // 以前卸载时整个 .staging 一起删，别的组件正在下载的 .part 就被连带删掉 —— curl 写完退出、校验时报 ENOENT
@@ -387,7 +429,7 @@ function compClearStage(id) {
   const stage = path.join(COMP_DIR, ".staging");
   let list = []; try { list = fs.readdirSync(stage); } catch { return; }
   if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) return;   // 组件 id 只有小写字母、数字、连字符
-  const mine = new RegExp("^" + id + "-[0-9a-f]{12}\\.tar\\.gz(\\.part)?$");
+  const mine = new RegExp("^" + id + "-[0-9a-f]{12}\\.tar\\.gz(\\.part(\\.seg)?)?$");
   for (const n of list) if (n === id || mine.test(n)) fs.rmSync(path.join(stage, n), { recursive: true, force: true });
 }
 
@@ -410,29 +452,29 @@ async function compRunInstall(id, b, job) {
   // 1) 下载（断点续传：.part 的名字带着 sha，换了版本不会接错）
   if (!fs.existsSync(gz)) {
     const part = gz + ".part";
-    const tick = setInterval(() => { try { job.done = fs.statSync(part).size; } catch {} }, 500);
-    try {
-      // 两个来源轮流试：GitHub 与 dl.cccodroid.net 镜像（逐字节同一份，内容一律按签名索引里的 sha256 把关，镜像不需要被信任）。
-      // 同一个 .part 接着续传；哪边成功了下回先试哪边
-      const urls = compMirrorFirst ? [compMirrorUrl(b), b.url] : [b.url, compMirrorUrl(b)];
+    {
+      // 几个来源轮流试：GitHub 与 dl.cccodroid.net 镜像（逐字节同一份，内容一律按签名索引里的 sha256 把关，镜像不需要被信任）。
+      // 同一个 .part 接着续传；哪边成功了下回先试哪边。gh-proxy 只排最后兜底。分段并行下载见 pget.mjs
+      const urls = (compMirrorFirst ? [compMirrorUrl(b), b.url] : [b.url, compMirrorUrl(b)]).concat(ghProxy(b.url));
       const srcs = urls.filter(Boolean);
       let lastErr;
       for (let i = 0; i < 4 && !job.cancelled; i++) {
         const url = srcs[i % srcs.length];
-        job.via = url === b.url ? "GitHub" : "dl.cccodroid.net";
-        try {
-          await compRun(job, path.join(PREFIX, "bin", "curl"), ["-fL", "-sS", "-C", "-", "--retry", "2", "--connect-timeout", "15", "--speed-limit", "10000", "--speed-time", "45", "-o", part, url]);
-          lastErr = null; compMirrorFirst = url !== b.url; break;
-        } catch (e) { lastErr = e; if (job.cancelled) break; log(`[comp] ${id} 从 ${job.via} 下载中断：${e.message}`); }
+        job.via = url === b.url ? "GitHub" : url.startsWith("https://gh-proxy.com/") ? "gh-proxy.com" : "dl.cccodroid.net";
+        const err = await pget({ curl: path.join(PREFIX, "bin", "curl"), url, file: part, total: b.bytes,
+          onProgress: (d) => { job.done = d; }, cancelled: () => !!job.cancelled });
+        if (!err) { lastErr = null; if (url === b.url || url === compMirrorUrl(b)) compMirrorFirst = url !== b.url; break; }
+        lastErr = new Error(err); if (job.cancelled) break; log(`[comp] ${id} 从 ${job.via} 下载中断：${err}`);
       }
       if (job.cancelled) throw new Error("cancelled");
       // 上回已经下全、没来得及改名就被打断：续传会得到 416，直接去校验
       let have = 0; try { have = fs.statSync(part).size; } catch {}
-      if (lastErr && have !== b.bytes) throw lastErr;
-    } finally { clearInterval(tick); }
+      // 分段下载的 .part 一开始就占满总大小，还有 .seg 就说明没下完
+      if (lastErr && (have !== b.bytes || fs.existsSync(part + ".seg"))) throw lastErr;
+    }
     job.phase = "verifying"; job.done = 0; job.total = b.bytes;
     const got = await sha256File(part, job);
-    if (got !== b.sha256) { fs.rmSync(part, { force: true }); throw new Error(tz("下载的文件校验不符（已删除，重试会重新下载）")); }
+    if (got !== b.sha256) { fs.rmSync(part, { force: true }); fs.rmSync(part + ".seg", { force: true }); throw new Error(tz("下载的文件校验不符（已删除，重试会重新下载）")); }
     fs.renameSync(part, gz);
   }
   if (job.cancelled) throw new Error("cancelled");

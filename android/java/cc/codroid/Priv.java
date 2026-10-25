@@ -335,7 +335,15 @@ final class Priv {
                     break;
                 }
                 case "share_logs": resp = Share.send(ctx, Share.bundleLogs(ctx), "application/zip"); break;
-                case "share_file": resp = Share.send(ctx, new java.io.File(req.optString("path")), req.optString("mime", "application/octet-stream")); break;
+                case "share_file": {
+                    // 查看器、用量月报都走这里：工作区和 /sdcard 上的文件先拷到导出目录再分享
+                    try {
+                        java.io.File f = Share.shareable(ctx, new java.io.File(req.optString("path")));
+                        String mime = req.optString("mime", "");
+                        resp = Share.send(ctx, f, mime.isEmpty() ? Share.mimeOf(f) : mime);
+                    } catch (Exception e) { resp = new JSONObject().put("ok", false).put("message", e.getMessage()); }
+                    break;
+                }
                 case "usb_open": Usb.open(ctx, req, sock); return;   // 自己回复（fd 随回复走）
                 // 设备工具（device-mcp.mjs 调）与它的设置页
                 case "dev": resp = DeviceTools.call(ctx, req); break;

@@ -4,7 +4,7 @@
 
 cccodroid 目前只有作者一个人在维护。安卓机型千差万别，一个人测不过来，也写不过来，所以非常需要帮手。下面按门槛从低到高排，挑你顺手的就行。
 
-先来打个招呼也好：**QQ 交流群 1062538743**，或者 [GitHub 讨论区](https://github.com/greyoak111/cccodroid/discussions)。
+先来打个招呼也好：**QQ 交流群 1062538743**、[Discord](https://discord.gg/jE6KW8kwpe)，或者 [GitHub 讨论区](https://github.com/greyoak111/cccodroid/discussions)。
 
 ---
 

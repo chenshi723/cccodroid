@@ -30,6 +30,8 @@ cccodroid runs Claude Code on the phone and serves its UI from a local gateway o
 - anything that undermines the download checks for Claude Code, the toolkit or components (see [docs/download-sources.md](docs/download-sources.md));
 - crashing the gateway or wiping data with crafted input.
 
+What the app's permissions are for, and what Claude can reach because of them, is explained in [docs/permissions.md](docs/permissions.md).
+
 Not in scope: anything that already requires running arbitrary code as the app (Claude itself can run commands; that's the point of the app), problems in Claude Code itself (report those to [Anthropic](https://www.anthropic.com/responsible-disclosure-policy)), and issues that need a rooted or already-compromised phone.
 
 Testing tip: use a spare install or a separate test gateway, never the data you actually use. Some of these bugs delete things.
@@ -65,6 +67,8 @@ cccodroid 在手机上跑 Claude Code，界面由一个监听 `127.0.0.1` 的本
 - 路径检查能被绕过（删到、读到不该碰的目录）；
 - 能让 Claude Code、工具包或组件的下载校验失效（见 [docs/download-sources.zh-CN.md](docs/download-sources.zh-CN.md)）；
 - 用构造的输入让网关崩溃或者删掉数据。
+
+应用的各项权限拿来干什么、Claude 因此碰得到什么，见 [docs/permissions.zh-CN.md](docs/permissions.zh-CN.md)。
 
 不算的：本来就要以应用身份执行任意代码才能做到的事（Claude 本身就能跑命令，这正是这个应用的用途）；Claude Code 本身的问题（请报告给 [Anthropic](https://www.anthropic.com/responsible-disclosure-policy)）；需要 root 或者手机已经被攻破才能成立的问题。
 

@@ -21,7 +21,7 @@ These are problems whose root cause we have **not found and cannot fully rule ou
   - So what gets stuck is WebView's own gesture state for this page, not our page code. Whether something we do happens to trigger it is still unknown.
 - **Patch since 0.2.0**:
   - **Automatic**: after two drags in a row where the finger moves vertically, the area under it could scroll that way, and it does not move, the app sends the interface to another site and back. It takes about a second. A reply in progress keeps running in the gateway, and unsent text in the message box is put back. This happens at most once a minute.
-  - **Manual**: the snowflake button (❄) in the top bar does the same thing. Use it when the automatic one does not kick in.
+  - **Manual**: press and hold the title in the top bar (the conversation name) for about a second; it does the same thing. Use it when the automatic one does not kick in. (Up to 0.3.18 this was the snowflake button, ❄.)
   - This works around the problem; it does not fix it.
 - **Diagnostics**: each unfreeze stores the recent touch log in page storage (`localStorage` key `cc.freezeLog`, last 5 times). For now only the development build can read it.
 - **Earlier approach** (0.1.19 to 0.2.0-rc1): when a drag did not scroll, a script took over the scrolling. In testing it did not help and sometimes made things worse, so it is gone.

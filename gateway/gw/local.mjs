@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn, execFile } from "node:child_process";
-import { CFG, HERE, PREFIX, log, tz } from "./config.mjs";
+import { CFG, LIVE, HERE, PREFIX, log, tz } from "./config.mjs";
 import { SETTINGS, saveSettings } from "./settings.mjs";
 import { LLAMA_PORT } from "./providers.mjs";
 import { expireModelCache } from "./models.mjs";
@@ -401,7 +401,7 @@ function installLocalSkill() {
     log("[local] 已装 local-model-mode 技能");
   } catch (e) { log(`[local] 技能没装上：${e.message}`); }
 }
-if (PREFIX) installLocalSkill();
+if (PREFIX && LIVE) installLocalSkill();
 
 /** 把应用界面叫回前台。cccodroid 由 App 进程做（Shizuku 或通知）；开发端直接 priv am start */
 export function toFront(text) {

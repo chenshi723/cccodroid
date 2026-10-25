@@ -57,7 +57,7 @@
     se.classList.toggle("hidden", !showSetup);
     if (showSetup) {
       se.className = "prov-state " + (su.phase === "error" ? "err" : su.phase === "done" ? "ok" : "warn");
-      se.textContent = su.message + (su.phase === "downloading" && su.total ? `（${fmtSize(su.done)} / ${fmtSize(su.total)}）` : "");
+      se.textContent = su.message + (su.phase === "downloading" && su.total ? `（${fmtSize(su.done) || "0 MB"} / ${fmtSize(su.total)}）` : "");
     }
     $("priv-pair").classList.toggle("hidden", su.phase !== "pairing");
     const wl = st.wireless !== false;
@@ -201,7 +201,7 @@
       const busy = it.state === "downloading" || it.state === "installing" || it.state === "verifying";
       moving ||= busy;
       const ver = esc(it.current || "?") + (it.latest && it.latest !== it.current && it.state !== "uptodate" ? " → " + esc(it.latest) : "");
-      const prog = it.state === "downloading" && it.total ? `（${fmtSize(it.done)} / ${fmtSize(it.total)} · ${Math.floor(it.done * 100 / it.total)}%）`
+      const prog = it.state === "downloading" && it.total ? `（${fmtSize(it.done) || "0 MB"} / ${fmtSize(it.total)} · ${Math.floor(it.done * 100 / it.total)}%）`
         : (it.state === "installing" || it.state === "verifying") && it.total ? `（${Math.floor(it.done * 100 / it.total)}%）` : "";
       const cls = it.state === "error" || it.state === "damaged" || it.state === "missing" ? "err" : it.state === "uptodate" ? "ok" : it.state === "unknown" ? "" : "warn";
       const btn = it.state === "missing" ? t("安装…") : it.state === "available" ? (it.id === "claude" ? t("更新") : t("下载并安装"))
@@ -246,21 +246,31 @@
       <div class="mp-lbl">${t("固定到某一版（自动更新不再改它）")}</div>
       <label class="searchbox mp-sb"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input class="mp-q" type="search" inputmode="decimal" autocomplete="off" placeholder="${t("搜索版本号")}"></label>
       <div class="mp-list"><div class="tiny">${t("读取中…")}</div></div>
-      <div class="tiny mp-note">${t("登录、会话和设置不受影响；版本越旧，越可能缺新功能。")}</div></div>`;
+      <div class="tiny mp-note">${t("登录、会话和设置不受影响；版本越旧，越可能缺新功能。")}</div>
+      <div class="tiny mp-note">${t("「已验证」：维护者在真机上跑过这一版（下载、调用工具、接着上次的会话）。标了「有已知问题」的版本，自动更新不会装。")}</div></div>`;
     OV.open(m, { kind: "modal", keep: true, cover: true });
     const close = () => OV.close(m);
     m.addEventListener("click", (e) => { if (e.target === m || e.target.closest(".mp-x")) close(); });
     let info;
-    try { info = await api("/api/claude/versions"); } catch (e) { info = { ok: false, message: e.message, versions: [] }; }
+    try { info = await api("/api/claude/versions?lang=" + encodeURIComponent(I18N.lang || "zh")); } catch (e) { info = { ok: false, message: e.message, versions: [] }; }
     if (!m.isConnected) return;
     const chBox = m.querySelector(".ccv-ch"), list = m.querySelector(".mp-list"), q = m.querySelector(".mp-q");
-    const chRow = (ch, v, sub) => `<button type="button" class="mp-item${mode === ch ? " cur" : ""}" data-ch="${ch}"><span>${t("跟随 {ch}", { ch })}${v ? " · " + esc(v) : ""}</span><small>${esc(sub)}</small></button>`;
+    const ver = info.verified || {}, bad = info.bad || {};
+    // 验证状态：验过的写上在哪台设备上验的；有问题的给出原因（维护者经 cccodroid.net 发布的签名记录，见 gw/ccverified.mjs）
+    const vTip = (v) => ver[v] ? t("真机验证过：{who}", { who: ver[v].map((r) => `${r.device} · Android ${r.android}（${r.at}）`).join("；") }) : "";
+    // 标记后面直接写在哪台设备上验的（手机上长按看不到 title）：第一台 + 「等 N 台」
+    const okMark = (v) => `<b class="ccv-ok">${t("已验证")}</b> · ${esc(`${ver[v][0].device} · Android ${ver[v][0].android}`)}${ver[v].length > 1 ? " " + esc(t("等 {n} 台", { n: ver[v].length })) : ""}`;
+    const badLine = (v) => bad[v] ? `<small class="ccv-bad">${esc(t("有已知问题：{why}", { why: bad[v].text }) + (bad[v].fixed ? " · " + t("{v} 已修", { v: bad[v].fixed }) : ""))}</small>` : "";
+    const chRow = (ch, v, sub) => `<button type="button" class="mp-item${mode === ch ? " cur" : ""}" data-ch="${ch}"${vTip(v) ? ` title="${esc(vTip(v))}"` : ""}><span>${t("跟随 {ch}", { ch })}${v ? " · " + esc(v) : ""}</span><small>${esc(sub)}${v && ver[v] ? " · " + okMark(v) : v && !bad[v] ? " · " + t("还没验证") : ""}</small>${badLine(v)}</button>`;
     chBox.innerHTML = chRow("stable", info.stable, t("官方稳定渠道")) + chRow("latest", info.latest, t("最新发布，比 stable 新，也可能没那么稳"));
     const tags = (v) => [v === info.stable ? "stable" : "", v === info.latest ? "latest" : "", v === it.current ? t("当前装的") : "", mode === "pinned" && v === pin ? t("已固定") : ""].filter(Boolean).join(" · ");
     const paint = () => {
       const kw = q.value.trim();
       const vs = (info.versions || []).filter((v) => !kw || v.includes(kw));
-      list.innerHTML = vs.slice(0, 200).map((v) => `<button type="button" class="mp-item${mode === "pinned" && v === pin ? " cur" : ""}" data-v="${esc(v)}"><span>${esc(v)}</span>${tags(v) ? `<small>${esc(tags(v))}</small>` : ""}</button>`).join("")
+      list.innerHTML = vs.slice(0, 200).map((v) => {
+        const tg = esc(tags(v)), ok = ver[v] ? okMark(v) : "";
+        return `<button type="button" class="mp-item${mode === "pinned" && v === pin ? " cur" : ""}" data-v="${esc(v)}"${vTip(v) ? ` title="${esc(vTip(v))}"` : ""}><span>${esc(v)}</span>${tg || ok ? `<small>${[tg, ok].filter(Boolean).join(" · ")}</small>` : ""}${badLine(v)}</button>`;
+      }).join("")
         || `<div class="tiny">${info.versions && info.versions.length ? t("没有匹配的版本") : esc(info.message || t("取不到版本列表"))}</div>`;
     };
     paint();
@@ -270,6 +280,8 @@
       if (!b) return;
       const ch = b.dataset.ch || "pinned", v = b.dataset.v || "";
       if (ch === mode && (ch !== "pinned" || v === pin) && it.state !== "missing") { close(); toast(t("已经是这个设置")); return; }
+      const target = ch === "pinned" ? v : info[ch];
+      if (target && bad[target] && !confirm(t("{v} 有已知问题：{why}\n\n仍然换到这一版？", { v: target, why: bad[target].text }))) return;
       close();
       const r = await post("/api/app/upd_set", ch === "pinned" ? { channel: ch, version: v } : { channel: ch }).catch((e2) => ({ ok: false, message: e2.message }));
       // 卸载过（未安装）：改设置不会自动装回，要再明说装一次

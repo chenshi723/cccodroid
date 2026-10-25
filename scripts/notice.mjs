@@ -16,19 +16,13 @@
 // ─────────────────────────────────────────────────────────────────────
 import fs from "node:fs";
 import path from "node:path";
-import crypto from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { ROOT, die, signAndPublish } from "./signed-pub.mjs";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const F = path.join(ROOT, "notices/notices.json");
-const KEYFILE = process.env.INDEX_SIGNING_KEY_FILE || "/data/user/0/li.dsh.claudecli/files/bldtools/index-signing-ed25519.pem";
 const SITE = "https://cccodroid.net/notices.json";
 const argv = process.argv.slice(2);
 const opt = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv.splice(i, 2)[1] : undefined; };
 const flag = (k) => { const i = argv.indexOf(k); return i >= 0 ? (argv.splice(i, 1), true) : false; };
-const die = (s) => { console.error("✗ " + s); process.exit(1); };
-const git = (...a) => execFileSync("git", ["-c", "safe.directory=*", "-c", "user.name=greyoak111", "-c", "user.email=suny96636@gmail.com", "-C", ROOT, ...a], { encoding: "utf8" }).trim();
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const DATE = /^\d{4}-\d{2}-\d{2}$/, VER = /^\d+\.\d+\.\d+$/;
 
 const load = () => { try { return JSON.parse(fs.readFileSync(F, "utf8")); } catch { return { v: 1, updated: "", notices: [] }; } };
@@ -76,32 +70,5 @@ const today = new Date().toISOString().slice(0, 10);
 d.notices = d.notices.filter((n) => !n.until || n.until >= today);
 d.v = 1;
 d.updated = new Date().toISOString();
-const body = Buffer.from(JSON.stringify(d, null, 1) + "\n");
-const key = crypto.createPrivateKey(fs.readFileSync(KEYFILE, "utf8"));
-const sig = crypto.sign(null, body, key).toString("base64");
-// 用 App 里那把公钥验一遍：签错钥匙的话，所有用户都会丢弃这份
-const pubPem = /-----BEGIN PUBLIC KEY-----\\n([A-Za-z0-9+/=]+)\\n/.exec(fs.readFileSync(path.join(ROOT, "gateway/gw/notices.mjs"), "utf8"))?.[1];
-const pub = crypto.createPublicKey(`-----BEGIN PUBLIC KEY-----\n${pubPem}\n-----END PUBLIC KEY-----\n`);
-if (!crypto.verify(null, body, pub, Buffer.from(sig, "base64"))) die("签出来的和 App 里的公钥对不上");
-fs.mkdirSync(path.dirname(F), { recursive: true });
-fs.rmSync(F, { force: true }); fs.writeFileSync(F, body);
-fs.rmSync(F + ".sig", { force: true }); fs.writeFileSync(F + ".sig", sig + "\n");
-for (const f of [F, F + ".sig"]) if (fs.statSync(f).size !== fs.readFileSync(f).length) die(`${f} 大小对不上（/sdcard FUSE），再跑一次 publish`);
-console.log(`✓ 已签名：${d.notices.length} 条在发`);
-
-git("add", "notices/notices.json", "notices/notices.json.sig");
-git("commit", "-q", "-m", `${msg}\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`);
-git("push", "-q", "origin", "HEAD:main");
-console.log(`✓ 已推送 ${git("rev-parse", "--short", "HEAD")}`);
-
-if (!process.env.SITE_KICK) console.log("  没给 SITE_KICK：等官网 30 分钟的定时同步");
-for (let i = 0; i < 40; i++) {
-  // 生成器从 raw.githubusercontent.com 取，那边缓存几分钟：第一次触发可能还拿到旧的，每 5 分钟再触发一次
-  if (process.env.SITE_KICK && i % 10 === 0) execFileSync("sh", [process.env.SITE_KICK], { stdio: "inherit" });
-  try {
-    const r = await fetch(`${SITE}?t=${Date.now()}`, { signal: AbortSignal.timeout(20000) });
-    if (r.ok && Buffer.from(await r.arrayBuffer()).equals(body)) { console.log(`✓ ${SITE} 已是这一版。App 最迟 3 小时内取到`); process.exit(0); }
-  } catch {}
-  await sleep(30000);
-}
-die(`20 分钟官网还没同步到这一版（看 cccodroid-site.service 的日志）`);
+console.log(`${d.notices.length} 条在发`);
+await signAndPublish({ file: "notices/notices.json", data: d, msg, site: SITE });

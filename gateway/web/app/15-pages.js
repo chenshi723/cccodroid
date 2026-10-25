@@ -107,7 +107,7 @@
 
 
   // ── 交流群与参与：帮助页最后一节、更新说明卡片底部共用。群号为主，二维码点开才显示 ──
-  const COMMUNITY = { qq: "1062538743", repo: "https://github.com/greyoak111/cccodroid" };
+  const COMMUNITY = { qq: "1062538743", repo: "https://github.com/greyoak111/cccodroid", discord: "https://discord.gg/jE6KW8kwpe" };
   function communityHtml(compact) {
     const R = COMMUNITY.repo, zh = isZh();
     return `<div class="cm-box${compact ? " compact" : ""}">
@@ -117,7 +117,7 @@
       <img class="cm-qr hidden" src="/qq-group.jpg" alt="${esc(t("QQ 交流群二维码"))}" loading="lazy">
       ${compact ? "" : `<p>${esc(t("用起来有问题、有想法，欢迎进群聊。报 bug 最好走「设置 → 到 GitHub 反馈」，机型和自检结果会自动带上，群里消息一多就沉了。"))}</p>
       <p>${esc(t("这个项目目前只有作者一个人在维护，非常需要帮手：译文校对、机型适配报告、组件配方、文档、代码都欢迎，不会写代码也能帮上忙。怎么参与见仓库里的贡献指南。"))}</p>`}
-      <div class="cm-links"><a href="${R}/discussions">${esc(t("讨论区"))}</a> · <a href="${R}/issues">${esc(t("反馈问题"))}</a> · <a href="${R}/blob/main/${zh ? "CONTRIBUTING.zh-CN.md" : "CONTRIBUTING.md"}">${esc(t("参与开发"))}</a></div>
+      <div class="cm-links"><a href="${COMMUNITY.discord}">Discord</a> · <a href="${R}/discussions">${esc(t("讨论区"))}</a> · <a href="${R}/issues">${esc(t("反馈问题"))}</a> · <a href="${R}/blob/main/${zh ? "CONTRIBUTING.zh-CN.md" : "CONTRIBUTING.md"}">${esc(t("参与开发"))}</a></div>
     </div>`;
   }
   function communityBind(root) {
@@ -140,7 +140,7 @@
   // 「## 」小节各包成一个 section：宽屏左边是固定目录、窄屏是顶上一排横向目录，滚动时高亮当前节；
   // 搜索框按节过滤。顶栏按钮那张表换成真图标的图例（md 里写的是字符，各语言共用一份映射）。
   let helpLang = "";
-  const HELP_TOPBAR = { "☰": "btn-menu", "📁": "btn-files", ">_": "btn-term", "🌐": "btn-web", "‹›": "btn-palette", "❄": "btn-unfreeze", "＋": "btn-new" };
+  const HELP_TOPBAR = { "☰": "btn-menu", "📁": "btn-files", ">_": "btn-term", "🌐": "btn-web", "‹›": "btn-palette", "⋯": "btn-more", "＋": "btn-new" };
   function helpIcon(id) {
     const sv = $(id)?.querySelector("svg");
     return sv ? sv.outerHTML : "";

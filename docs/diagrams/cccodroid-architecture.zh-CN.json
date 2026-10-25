@@ -10,7 +10,7 @@
    "url": "https://github.com/greyoak111/cccodroid",
    "provider": "github",
    "link_mode": "web",
-   "revision": "6706b6e9fa6fd672be6ddb9567b48e65bb8a9628"
+   "revision": "abe9782812f211d96fe956346b9665ae4afb9c88"
   }
  },
  "components": [
@@ -32,8 +32,8 @@
    "id": "ui",
    "type": "frontend",
    "label": "界面",
-   "sublabel": "WebView + app.js",
-   "tag": "8 种语言",
+   "sublabel": "WebView · web/app 19 段",
+   "tag": "9 种语言",
    "pos": [
     220,
     196
@@ -45,18 +45,13 @@
    "sources": [
     {
      "path": "android/java/cc/codroid/MainActivity.java",
-     "line": 441,
-     "end_line": 454
+     "line": 1142,
+     "end_line": 1142
     },
     {
-     "path": "android/java/cc/codroid/Env.java",
-     "line": 26,
-     "end_line": 30
-    },
-    {
-     "path": "gateway/web/app.js",
-     "line": 116,
-     "end_line": 116
+     "path": "gateway/gw/http.mjs",
+     "line": 79,
+     "end_line": 80
     }
    ]
   },
@@ -76,22 +71,17 @@
    "sources": [
     {
      "path": "android/java/cc/codroid/GatewayService.java",
-     "line": 59,
-     "end_line": 72
-    },
-    {
-     "path": "android/java/cc/codroid/GatewayService.java",
-     "line": 150,
-     "end_line": 151
+     "line": 63,
+     "end_line": 64
     }
    ]
   },
   {
    "id": "gw",
    "type": "backend",
-   "label": "网关 server.mjs",
-   "sublabel": "Node · 127.0.0.1:8791",
-   "tag": "令牌 · 队列",
+   "label": "网关",
+   "sublabel": "server.mjs + gw/ 模块",
+   "tag": "令牌 · 事件总线",
    "pos": [
     460,
     196
@@ -102,19 +92,19 @@
    ],
    "sources": [
     {
-     "path": "gateway/server.mjs",
-     "line": 3519,
-     "end_line": 3556
+     "path": "gateway/gw/access.mjs",
+     "line": 11,
+     "end_line": 12
     },
     {
-     "path": "gateway/server.mjs",
-     "line": 2471,
-     "end_line": 2498
+     "path": "gateway/gw/bus.mjs",
+     "line": 18,
+     "end_line": 18
     },
     {
-     "path": "gateway/server.mjs",
-     "line": 3999,
-     "end_line": 4004
+     "path": "gateway/gw/run.mjs",
+     "line": 32,
+     "end_line": 32
     }
    ]
   },
@@ -134,14 +124,14 @@
    ],
    "sources": [
     {
-     "path": "gateway/server.mjs",
-     "line": 2778,
-     "end_line": 2781
+     "path": "gateway/gw/run.mjs",
+     "line": 187,
+     "end_line": 187
     },
     {
-     "path": "android/java/cc/codroid/Env.java",
-     "line": 100,
-     "end_line": 101
+     "path": "gateway/gw/stream.mjs",
+     "line": 85,
+     "end_line": 85
     }
    ]
   },
@@ -149,25 +139,26 @@
    "id": "api",
    "type": "cloud",
    "label": "模型 API",
-   "sublabel": "官方账户或第三方厂商",
+   "sublabel": "官方账户 · DeepSeek · Kimi 等",
+   "tag": "每个会话各选",
    "pos": [
-    990,
+    1250,
     196
    ],
    "size": [
-    170,
+    210,
     72
    ],
    "sources": [
     {
-     "path": "gateway/server.mjs",
-     "line": 800,
-     "end_line": 810
+     "path": "gateway/gw/providers.mjs",
+     "line": 10,
+     "end_line": 12
     },
     {
-     "path": "gateway/server.mjs",
-     "line": 74,
-     "end_line": 76
+     "path": "gateway/gw/sessmodel.mjs",
+     "line": 32,
+     "end_line": 44
     }
    ]
   },
@@ -175,7 +166,7 @@
    "id": "upd",
    "type": "backend",
    "label": "Updater / Installer",
-   "sublabel": "首装与更新",
+   "sublabel": "APK 28/36 · 工具包模块",
    "pos": [
     740,
     40
@@ -187,32 +178,32 @@
    "sources": [
     {
      "path": "android/java/cc/codroid/Updater.java",
-     "line": 33,
-     "end_line": 35
+     "line": 27,
+     "end_line": 37
     },
     {
      "path": "android/java/cc/codroid/Updater.java",
-     "line": 252,
-     "end_line": 252
+     "line": 135,
+     "end_line": 138
     },
     {
      "path": "android/java/cc/codroid/Installer.java",
-     "line": 20,
-     "end_line": 42
+     "line": 21,
+     "end_line": 21
     }
    ]
   },
   {
    "id": "dl",
    "type": "cloud",
-   "label": "发布源",
-   "sublabel": "GitHub Releases · downloads.claude.ai",
+   "label": "发布源与镜像",
+   "sublabel": "GitHub · cccodroid.net · 官方",
    "pos": [
-    990,
+    1250,
     40
    ],
    "size": [
-    170,
+    180,
     64
    ],
    "sources": [
@@ -220,6 +211,32 @@
      "path": "android/java/cc/codroid/Updater.java",
      "line": 33,
      "end_line": 33
+    },
+    {
+     "path": "android/java/cc/codroid/Updater.java",
+     "line": 44,
+     "end_line": 44
+    }
+   ]
+  },
+  {
+   "id": "shz",
+   "type": "external",
+   "label": "Shizuku",
+   "sublabel": "shell 身份 uid 2000",
+   "pos": [
+    20,
+    380
+   ],
+   "size": [
+    160,
+    60
+   ],
+   "sources": [
+    {
+     "path": "android/java/cc/codroid/ShizukuSetup.java",
+     "line": 50,
+     "end_line": 50
     }
    ]
   },
@@ -240,12 +257,12 @@
     {
      "path": "android/java/cc/codroid/Priv.java",
      "line": 30,
-     "end_line": 44
+     "end_line": 33
     },
     {
-     "path": "gateway/server.mjs",
-     "line": 2977,
-     "end_line": 2985
+     "path": "android/java/cc/codroid/Priv.java",
+     "line": 255,
+     "end_line": 255
     }
    ]
   },
@@ -264,14 +281,14 @@
    ],
    "sources": [
     {
-     "path": "gateway/server.mjs",
-     "line": 60,
-     "end_line": 60
+     "path": "gateway/gw/config.mjs",
+     "line": 11,
+     "end_line": 11
     },
     {
-     "path": "gateway/server.mjs",
-     "line": 3519,
-     "end_line": 3519
+     "path": "gateway/gw/sessions.mjs",
+     "line": 65,
+     "end_line": 65
     }
    ]
   },
@@ -279,7 +296,8 @@
    "id": "devkit",
    "type": "database",
    "label": "devkit 工具链",
-   "sublabel": "$PREFIX · Termux 包等长改前缀",
+   "sublabel": "基础 + 按需模块",
+   "tag": "Termux 包等长改前缀",
    "pos": [
     740,
     380
@@ -295,30 +313,89 @@
      "end_line": 16
     },
     {
-     "path": "android/java/cc/codroid/Installer.java",
-     "line": 170,
-     "end_line": 200
+     "path": "gateway/gw/modules.mjs",
+     "line": 21,
+     "end_line": 38
     }
    ]
   },
   {
-   "id": "shz",
-   "type": "external",
-   "label": "Shizuku",
-   "sublabel": "shell 身份 uid 2000",
+   "id": "loader",
+   "type": "security",
+   "label": "APK 内的加载器",
+   "sublabel": "libldlinux.so · exec 垫片",
+   "tag": "targetSdk 36",
    "pos": [
-    20,
+    990,
     380
    ],
    "size": [
-    160,
-    60
+    180,
+    64
    ],
    "sources": [
     {
-     "path": "android/java/cc/codroid/ShizukuSetup.java",
-     "line": 43,
-     "end_line": 50
+     "path": "android/java/cc/codroid/Env.java",
+     "line": 173,
+     "end_line": 177
+    },
+    {
+     "path": "android/native/exec-shim.c",
+     "line": 5,
+     "end_line": 11
+    },
+    {
+     "path": "android/prebuilt/glibc/ld.json",
+     "line": 1,
+     "end_line": 5
+    }
+   ]
+  },
+  {
+   "id": "mcp",
+   "type": "backend",
+   "label": "设备工具 MCP",
+   "sublabel": "通知 · 剪贴板 · 分享 · 无障碍",
+   "tag": "Claude 的 MCP 服务器",
+   "pos": [
+    220,
+    540
+   ],
+   "size": [
+    160,
+    64
+   ],
+   "sources": [
+    {
+     "path": "android/assets/bin/device-mcp.mjs",
+     "line": 5,
+     "end_line": 5
+    },
+    {
+     "path": "android/java/cc/codroid/DeviceTools.java",
+     "line": 54,
+     "end_line": 54
+    }
+   ]
+  },
+  {
+   "id": "skills",
+   "type": "database",
+   "label": "~/.claude/skills",
+   "sublabel": "组件带来的 skill",
+   "pos": [
+    470,
+    540
+   ],
+   "size": [
+    150,
+    64
+   ],
+   "sources": [
+    {
+     "path": "gateway/gw/components.mjs",
+     "line": 354,
+     "end_line": 354
     }
    ]
   },
@@ -338,45 +415,14 @@
    ],
    "sources": [
     {
-     "path": "gateway/server.mjs",
-     "line": 1803,
-     "end_line": 1812
+     "path": "gateway/gw/components.mjs",
+     "line": 29,
+     "end_line": 29
     },
     {
-     "path": "gateway/server.mjs",
-     "line": 1836,
-     "end_line": 1846
-    },
-    {
-     "path": "gateway/server.mjs",
-     "line": 2043,
-     "end_line": 2071
-    }
-   ]
-  },
-  {
-   "id": "skills",
-   "type": "database",
-   "label": "~/.claude/skills",
-   "sublabel": "组件带来的 skill",
-   "pos": [
-    470,
-    540
-   ],
-   "size": [
-    150,
-    64
-   ],
-   "sources": [
-    {
-     "path": "gateway/server.mjs",
-     "line": 2072,
-     "end_line": 2083
-    },
-    {
-     "path": "gateway/server.mjs",
-     "line": 3461,
-     "end_line": 3462
+     "path": "gateway/gw/components.mjs",
+     "line": 69,
+     "end_line": 69
     }
    ]
   },
@@ -384,9 +430,9 @@
    "id": "market",
    "type": "cloud",
    "label": "组件市场",
-   "sublabel": "配方 → CI 审计 → 打包 → 签名索引",
+   "sublabel": "配方 → CI 审计 → 签名索引",
    "pos": [
-    990,
+    1250,
     540
    ],
    "size": [
@@ -408,6 +454,8 @@
     "priv",
     "home",
     "devkit",
+    "loader",
+    "mcp",
     "comp",
     "skills"
    ]
@@ -452,7 +500,7 @@
    "id": "upd-dl",
    "from": "upd",
    "to": "dl",
-   "label": "下载",
+   "label": "下载 · 验哈希",
    "variant": "dashed"
   },
   {
@@ -474,6 +522,12 @@
    "label": "Bash 工具"
   },
   {
+   "id": "loader-devkit",
+   "from": "loader",
+   "to": "devkit",
+   "label": "改写 exec"
+  },
+  {
    "id": "gw-priv",
    "from": "gw",
    "to": "priv",
@@ -485,6 +539,13 @@
    "from": "priv",
    "to": "shz",
    "label": "binder",
+   "variant": "security"
+  },
+  {
+   "id": "mcp-priv",
+   "from": "mcp",
+   "to": "priv",
+   "label": "本地套接字",
    "variant": "security"
   },
   {
@@ -526,7 +587,7 @@
    "title": "主路径",
    "items": [
     "界面只是订阅者：生成归网关管，刷新、切后台都不断",
-    "排队消息停在对话末尾，停止只管停止",
+    "每个对话可以各用各的模型和接口，同时跑",
     "Claude Code 是官方原版，不改一个字节",
     "要确认的工具调用弹卡片：默认逐项确认，与官方一致"
    ]
@@ -537,15 +598,16 @@
    "items": [
     "网关 /api/* 必须带 256 位令牌，校验 Host 与 Origin",
     "登录走官方流程：授权码在终端里贴给 claude，网关不经手",
-    "priv 只接受本应用 uid 的调用"
+    "priv 只接受本应用 uid 的调用；设备工具（给 Claude 的 MCP）默认关，打开别的应用前由用户确认"
    ]
   },
   {
    "dot": "cyan",
-   "title": "工具链",
+   "title": "工具链与安装包",
    "items": [
-    "devkit 由 Termux 官方仓库组装，等长改前缀原生运行",
-    "zip/jmod 归档内部同样改写"
+    "devkit 由 Termux 官方仓库组装，等长改前缀原生运行；基础之外按模块装",
+    "28 / 36 两套安装包，同版本同签名可互相覆盖",
+    "36 版不能直接执行私有目录里的程序：经 APK 自带的 ld.so 和 linker64 间接启动"
    ]
   },
   {
@@ -554,7 +616,6 @@
    "items": [
     "装一个组件 = 多一组命令 + 一份 skill：Claude 自己就学会用",
     "社区 PR 配方，只引用 Termux 官方仓库的包或按 sha256 钉死的上游文件",
-    "CI 打包时自动审计，报告分 🟢🟡🔴，人只看要看的",
     "App 只认 ed25519 签名的索引；索引里有每个包的 sha256"
    ]
   }

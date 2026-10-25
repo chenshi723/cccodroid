@@ -3,6 +3,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import crypto from "node:crypto";
 import { CFG, GLIBC_PRELOAD, PATHS, PREFIX, glibcEnv, log, tz } from "./config.mjs";
+import { verifiedInfo } from "./ccverified.mjs";
 import { ledger } from "./claude.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { termEnv } from "./terminal.mjs";
@@ -215,7 +216,10 @@ async function claudeVersions(force) {
 
 // ── 路由：/api/mem/status /api/mem/clear /api/priv/status /api/priv/request /api/priv/open /api/priv/audit /api/priv/keepalive /api/app/ ──
 export async function routeDevside(req, res, u, p) {
-  if (req.method === "GET" && p === "/api/claude/versions") return sendJson(res, 200, await claudeVersions(u.searchParams.get("refresh") === "1"));
+  if (req.method === "GET" && p === "/api/claude/versions") {
+    const [vs, vi] = await Promise.all([claudeVersions(u.searchParams.get("refresh") === "1"), verifiedInfo((u.searchParams.get("lang") || "zh").startsWith("zh") ? "zh" : "en")]);
+    return sendJson(res, 200, { ...vs, ...vi });
+  }
   if (req.method === "GET" && p === "/api/mem/status") return sendJson(res, 200, await ccMem(["status", "--json"]));
   if (req.method === "POST" && p === "/api/mem/clear") {
     const b = JSON.parse((await readBody(req)) || "{}");

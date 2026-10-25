@@ -87,11 +87,13 @@ const ensureRel = () => { if (!["devkit.lock.json", "modules.json", "modules.jso
 
 // 等 CI 跑完：每分钟问一次状态。不用 gh run watch —— 一个半小时里网络抖一下它就非零退出，会把成功的构建当失败
 async function waitRun(repo, id) {
-  let errs = 0;
+  let errs = 0, told = false;
   for (;;) {
     try {
       const r = JSON.parse(gh("run", "view", String(id), "-R", repo, "--json", "status,conclusion"));
       errs = 0;
+      // devkit 工作流走 devkit-release 环境：签名钥匙要维护者批准才放出来，批之前一直是 waiting
+      if (r.status === "waiting" && !told) { told = true; console.log(`  ⏸ 等审批：到 https://github.com/${repo}/actions/runs/${id} 点 Review deployments → 勾 devkit-release → Approve and deploy`); }
       if (r.status === "completed") return r.conclusion;
     } catch (e) { if (++errs >= 15) fail(`连续 15 分钟查不到 run ${id} 的状态：${e.message.split("\n")[0]}`); }
     await sleep(60000);
@@ -340,7 +342,7 @@ step.check = async () => {
   const gz = lockOf().gz.sha256;
   const t = async (name, fn) => { try { await fn(); } catch (e) { bad++; say(`  ✗ ${name}：${e.message}`); } };
   await t("Release 与 App 的钉子", async () => {
-    const lock = JSON.parse((await getBuf(BASE + "devkit.lock.json")).toString());
+    const lockBuf = await getBuf(BASE + "devkit.lock.json"), lock = JSON.parse(lockBuf.toString());
     const mods = await getBuf(BASE + "modules.json"), sig = (await getBuf(BASE + "modules.json.sig")).toString();
     if (!verifySig(mods, sig)) fail("modules.json 验签失败");
     if (lock.gz.sha256 !== gz) fail("线上清单的 gz 和本地留的那份不一致");
@@ -349,6 +351,7 @@ step.check = async () => {
     if (src !== BASE) fail(`devkit-sources.txt 是 ${src}`);
     const pin = JSON.parse(git(ROOT, "show", "origin/main:devkit-pin.json"));
     if (pin.tag !== TAG || pin.gz.sha256 !== lock.gz.sha256 || pin.modules?.sha256 !== sha(mods)) fail("origin/main 上的 devkit-pin.json 和 Release 对不上");
+    if (pin.lock?.sha256 !== sha(lockBuf)) fail("origin/main 上的 devkit-pin.json 钉的 devkit.lock.json 和 Release 对不上");
     say(`  ✓ Release 清单验签；origin/main 钉的就是它（gz ${lock.gz.sha256.slice(0, 12)}）`);
   });
   await t("市场", async () => {

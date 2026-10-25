@@ -40,7 +40,8 @@ function priv(cmd, timeout = 30000) {
   // 两路合成一路再读：开发端的 rish 客户端会把输出随机拆到 stdout / stderr 两个管道，分开接收各得一半
   const r = spawnSync("/system/bin/sh", ["-c", `exec "$@" 2>&1`, "sh", ...privArgv(), `{ ${cmd}\n} 2>&1`], { encoding: "utf8", timeout, maxBuffer: 64 << 20 });
   if (r.error) throw new Error(`priv 调用失败：${r.error.message}`);
-  if (r.status === 125) throw new Error((r.stdout || "").trim() || "priv 不可用（Shizuku 没启动或没授权）");
+  // 125 连不上 cccodroid、126 Shizuku 没运行/没授权、127 起进程失败：都不能当成「没有输出」往下走，否则会显示「可停的应用 0 个」
+  if (r.status >= 125 && r.status <= 127) throw new Error((r.stdout || "").replace(/^priv: /gm, "").trim() || "priv 不可用（Shizuku 没启动或没授权）");
   return { out: r.stdout || "", err: r.stdout || "", code: r.status };
 }
 const sh = (s) => "'" + String(s).replace(/'/g, "'\\''") + "'";
@@ -97,6 +98,8 @@ function processes() {
     const c = l.match(/^\s+- \w+\/([^/\s]+)\/\S*->\d+:\S+ s([1-9]\d*)\//);
     if (c && cur) cur.pkgs.push(c[1]);
   }
+  // 一行进程都没读到：dumpsys 被拒或格式不认识。直接报错，别让界面说「0 个」
+  if (!/^\s*#\s*\d+:/m.test(lru)) throw new Error("读不到进程列表（dumpsys activity lru）：" + (lru.replace(/^@LRU\s*/, "").trim().slice(0, 200) || "没有输出"));
   const list = [];
   for (const l of lru.split("\n")) {
     const m = l.match(/^\s*#\s*\d+:\s+(\S+).*?\s(\d+):([^\s/]+)\/(\S+)/);

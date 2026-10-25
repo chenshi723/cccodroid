@@ -7,14 +7,17 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { CFG, log, tz } from "./config.mjs";
+import { CFG, LIVE, log, tz } from "./config.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { END_HOOKS, enqueue } from "./queue.mjs";
 import { RUNS } from "./runs.mjs";
 import { publish } from "./bus.mjs";
 import { NAMES, saveNames } from "./sessions.mjs";
 import { trashSession } from "./sessionops.mjs";
-import { projectById } from "./projects.mjs";
+import { projectById, projectDefaults } from "./projects.mjs";
+import { isLoginMode } from "./models.mjs";
+import { providerById } from "./providers.mjs";
+import { sessProvider } from "./sessmodel.mjs";
 import { privCall } from "./usage.mjs";
 import { usdCny } from "./providers.mjs";
 
@@ -25,7 +28,8 @@ if (!process.env.TZ && Intl.DateTimeFormat().resolvedOptions().timeZone === "UTC
 
 const FILE = path.join(CFG.home, "ccapp-sched.json");
 const RUNS_FILE = path.join(CFG.home, "ccapp-sched-runs.json");
-const DB = { tasks: [], dailyBudget: 0, missed: [], sids: [], lastTick: 0 };   // dailyBudget：美元，0 = 不限
+const DB = { tasks: [], dailyBudget: 0, missed: [], sids: [], lastTick: 0, allowLogin: false };   // dailyBudget：美元，0 = 不限
+// allowLogin：用订阅账户（官方登录态）跑定时任务。默认关——无人值守使用以 Anthropic 条款为准，要用户自己确认后打开
 try { Object.assign(DB, JSON.parse(fs.readFileSync(FILE, "utf8"))); } catch {}
 let RUNLOG = [];
 try { RUNLOG = JSON.parse(fs.readFileSync(RUNS_FILE, "utf8")); if (!Array.isArray(RUNLOG)) RUNLOG = []; } catch {}
@@ -60,7 +64,8 @@ function cronField(spec, lo, hi) {
 export function parseCron(expr) {
   const f = String(expr || "").trim().split(/\s+/);
   if (f.length !== 5) throw new Error(tz("cron 要五段：分 时 日 月 周"));
-  const dow = cronField(f[4].replace(/7/g, "0"), 0, 6);
+  // 星期按 0..7 展开，再把 7（星期日的别名）并进 0。先替换字符串再展开会把 1-7 变成 1-0，范围就空了（issue #16）
+  const dow = new Set([...cronField(f[4], 0, 7)].map((d) => (d === 7 ? 0 : d)));
   return { min: cronField(f[0], 0, 59), hour: cronField(f[1], 0, 23), dom: cronField(f[2], 1, 31), mon: cronField(f[3], 1, 12), dow, domAny: f[2] === "*", dowAny: f[4] === "*" };
 }
 export function nextAt(task, from = Date.now()) {
@@ -131,6 +136,14 @@ const costToday = () => RUNLOG.filter((r) => dayKey(r.at) === dayKey(Date.now())
 function addRun(rec) { RUNLOG.push(rec); saveRuns(); publish({ type: "sched", op: "run", taskId: rec.taskId }); return rec; }
 function note(t, title, text, sessionId, ok) { publish({ type: "sched_note", taskId: t.id, title, text: String(text || "").slice(0, 200), sessionId: sessionId || null, ok: !!ok }); }
 
+// 这个任务跑起来会用哪家：和 run.mjs 挑接口的顺序一致（任务指定 → 接着的会话钉的 → 项目默认 → 全局）
+function taskProvider(t) {
+  const sid = t.session === "same" && t.lastSid ? t.lastSid : null;
+  const pd = projectDefaults(t.projectId ? projectById(t.projectId) : null);
+  return (t.provider && providerById(t.provider)) || (pd.provider && providerById(pd.provider)) || sessProvider(sid);
+}
+const usesLogin = (t) => { try { return isLoginMode(taskProvider(t)); } catch { return false; } };
+
 // ── 跑一次 ──
 const RUNNING = new Map();   // key → { taskId, startedAt, attempt, trial }
 let keyN = 0;
@@ -139,6 +152,11 @@ async function fire(t, { reason = "due", attempt = 0, trial = false } = {}) {
   if (!trial) {
     if (t.until?.kind === "date" && t.until.date && Date.now() > new Date(t.until.date + "T23:59:59").getTime()) { t.on = false; refreshNext(t); save(); return skip(tz("已过有效期，任务已关")); }
     if (t.skipNext && reason === "due") { t.skipNext = false; save(); return skip(tz("按设置跳过这一次")); }
+    if (usesLogin(t) && !DB.allowLogin) {
+      skip(tz("用订阅账户跑定时任务默认关闭"));
+      note(t, tz("定时任务已跳过"), tz("「{n}」要用订阅账户跑：到定时任务页底部「订阅账户」里打开（无人值守使用以 Anthropic 条款为准），或给任务换一个用 API Key 的接口", { n: t.name }), null, false);
+      return;
+    }
     if (DB.dailyBudget > 0 && costToday() >= DB.dailyBudget) { skip(tz("今天的花费已到上限")); note(t, tz("定时任务已跳过"), tz("「{n}」：今天的花费已到上限", { n: t.name }), null, false); return; }
     const c = t.cond || {};
     if (c.wifi || c.charging || c.battery) {
@@ -238,7 +256,7 @@ function tick() {
   DB.lastTick = now;
   save();
 }
-setTimeout(() => { tick(); setInterval(tick, 30000); }, 5000);
+if (LIVE) setTimeout(() => { tick(); setInterval(tick, 30000); }, 5000);
 
 // ── 校验 / 整理前端交来的任务 ──
 const KINDS = ["daily", "weekly", "monthly", "every", "once", "cron"];
@@ -292,7 +310,8 @@ export async function routeSched(req, res, u, p) {
   if (p === "/api/sched" && req.method === "GET") {
     DB.missed = DB.missed.filter((m) => byId(m.taskId));
     return sendJson(res, 200, { tasks: DB.tasks.map(summary), missed: DB.missed, sids: DB.sids.slice(-2000),
-      budget: { daily: DB.dailyBudget, today: costToday(), month: monthStats() }, fx: await Promise.race([usdCny().catch(() => null), new Promise((r) => setTimeout(() => r(null), 1500))]),   // 汇率：中文界面把美元花费换成人民币；取不到就照美元
+      budget: { daily: DB.dailyBudget, today: costToday(), month: monthStats() },
+      allowLogin: !!DB.allowLogin, loginTasks: DB.tasks.filter(usesLogin).map((t) => t.id), fx: await Promise.race([usdCny().catch(() => null), new Promise((r) => setTimeout(() => r(null), 1500))]),   // 汇率：中文界面把美元花费换成人民币；取不到就照美元
       running: [...RUNNING.values()].map((x) => x.taskId) });
   }
   if (p === "/api/sched" && req.method === "POST") {
@@ -307,6 +326,11 @@ export async function routeSched(req, res, u, p) {
   }
   // 外壳的闹钟响了：立刻查一遍（不用等下一个 30 秒）
   if (p === "/api/sched/tick" && req.method === "POST") { tick(); return sendJson(res, 200, { ok: true, next: lastNext }); }
+  if (p === "/api/sched/allow-login" && req.method === "PUT") {
+    const b = await body(); DB.allowLogin = !!b.on; save();
+    log(`⏰ 用订阅账户跑定时任务：${DB.allowLogin ? "已打开（用户确认了条款提示）" : "已关闭"}`);
+    return sendJson(res, 200, { ok: true, allowLogin: DB.allowLogin });
+  }
   if (p === "/api/sched/budget" && req.method === "PUT") {
     const b = await body(); DB.dailyBudget = Math.max(0, Math.min(1000, +b.daily || 0)); save();
     return sendJson(res, 200, { ok: true });

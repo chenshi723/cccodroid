@@ -11,6 +11,25 @@
 //    · 没有壳（浏览器里打开）就用 matchMedia。
 //  定下来以后再告诉壳 CCApp.setBars(dark)，让状态栏 / 导航栏跟着换色。
 // ─────────────────────────────────────────────────────────────────────
+
+// ── 原生桥口令（cccodroid 0.4.6 起）：壳的 CCApp 里有副作用的方法第一个参数要带口令，
+//    口令只经首页地址 ?k= 交给主框架（存 sessionStorage，刷新还在）。HTML 预览的 iframe 同样被注入了 CCApp，
+//    但和界面不同源，拿不到口令，调了也没用。这里把 CCApp 换成自动带口令的一层，其余代码照旧写 CCApp.xxx(…)。
+//    放在 theme.js 开头，因为它是第一个碰 CCApp 的脚本。开发端 / 测试壳没有 keyed()，原样不动
+(function () {
+  const raw = window.CCApp;
+  if (!raw || typeof raw.keyed !== "function") return;
+  let k = (/[?&]k=([0-9a-f]{32})/.exec(location.search) || [])[1] || "";
+  try { if (k) sessionStorage.setItem("cc.bk", k); else k = sessionStorage.getItem("cc.bk") || ""; } catch {}
+  const PLAIN = ["hasPane", "paneCanBack", "whatsNew", "nightMode", "keyed"];
+  const KEYED = ["openUrl", "paneOpen", "paneBounds", "paneGoBack", "paneClose", "openBrowser", "shareText", "copyText",
+    "pickDevkit", "uninstall", "unfreeze", "whatsNewSeen", "setBars", "skinPref", "langPref", "themePref", "saveAs"];
+  const w = {};
+  for (const m of PLAIN) if (typeof raw[m] === "function") w[m] = (...a) => raw[m](...a);
+  for (const m of KEYED) if (typeof raw[m] === "function") w[m] = (...a) => raw[m](k, ...a);
+  window.CCApp = w;
+})();
+
 (function () {
   const LS = "ccapp.theme";
   const MODES = ["auto", "light", "dark", "qs-auto", "qs-light", "qs-dark", "zy-auto", "zy-light", "zy-dark"];

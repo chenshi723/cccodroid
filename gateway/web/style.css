@@ -64,6 +64,24 @@ body{
   #topbar{gap:2px;padding-left:6px;padding-right:6px}
   #topbar .icon-btn{width:34px;flex-basis:34px}
 }
+/* 工具键横向折叠：列宽 0fr ↔ 1fr 过渡，宽度跟着实际按钮数走（浏览器键可能藏着）。
+   展开时离「⋯」最近的先出来（--i 由 19-boot.js 按可见顺序倒着编号），收起时一起利落地退回；收起后 visibility 关掉，点不到也读不到 */
+#tb-tools{display:grid;grid-template-columns:0fr;min-width:0;transition:grid-template-columns .36s cubic-bezier(.32,.72,0,1)}
+#tb-tools .tb-in{display:flex;align-items:center;gap:inherit;min-width:0;overflow:hidden;visibility:hidden;transition:visibility 0s .36s}
+#tb-tools .icon-btn{opacity:0;transform:translateX(12px) scale(.9);transition:opacity .14s ease,transform .2s ease}
+html.tb-open #tb-tools{grid-template-columns:1fr}
+html.tb-open #tb-tools .tb-in{visibility:visible;transition:none}
+html.tb-open #tb-tools .icon-btn{opacity:1;transform:none;transition:opacity .26s ease calc(var(--i,0) * 38ms),transform .42s cubic-bezier(.32,.72,0,1) calc(var(--i,0) * 38ms)}
+/* 「⋯」→「›」：三个点（零长度线段 + 圆头）被拉长、连成一个折角；收起时缩回三个点 */
+#btn-more path{transition:d .4s cubic-bezier(.32,.72,0,1),stroke-width .4s ease;stroke-width:2.8}
+#btn-more .more-a{d:path("M6 12L6 12")}#btn-more .more-b{d:path("M12 12L12 12")}#btn-more .more-c{d:path("M18 12L18 12")}
+html.tb-open #btn-more path{stroke-width:2}
+html.tb-open #btn-more .more-a{d:path("M9.5 6L15.5 12")}html.tb-open #btn-more .more-b{d:path("M15.5 12L15.5 12")}html.tb-open #btn-more .more-c{d:path("M15.5 12L9.5 18")}
+html.tb-still #tb-tools,html.tb-still #tb-tools *,html.tb-still #btn-more path{transition:none !important}
+@media (prefers-reduced-motion:reduce){#tb-tools,#tb-tools *,#btn-more path{transition:none !important}}
+/* 长按标题 = 冻结脱困：按住时标题慢慢淡下去，到点轻振一下；不选字、不弹菜单 */
+#title-block{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:opacity .2s ease}
+#title-block.lp{opacity:.4;transition:opacity .6s ease}
 #sub-title{font-size:11.5px;color:var(--fg3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #sub-title.ok{color:var(--ok)} #sub-title.err{color:var(--err)} #sub-title.warn{color:var(--warn)}
 .icon-btn{
@@ -107,7 +125,7 @@ html[data-skin="zhuyue"] #ctxbar:not(.warn):not(.danger) #ctxfill{background:lin
 .msg.user .who .dot{background:var(--tool)}
 .msg.bot  .who .dot{background:var(--accent)}
 .msg.sys  .who .dot{background:var(--purple)}
-.who .tag{margin-inline-start:auto;font-weight:400;color:var(--fg3);font-size:10.5px}
+.who .tag{margin-inline-start:auto;border:0;padding:0;font-weight:400;color:var(--fg3);font-size:10.5px}
 
 .bubble{
   background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);
@@ -148,6 +166,37 @@ pre code{background:none;border:0;padding:0;font-size:12.5px;line-height:1.6}
   position:absolute;top:6px;inset-inline-end:6px;background:var(--bg3);border:0;
   color:var(--fg2);border-radius:7px;font-size:10.5px;padding:3px 8px;opacity:.85;
 }
+/* 代码块顶上的语言名：和 pre 拼成一块，复制键正好落在这一条里 */
+.code-wrap.has-lang>.code-lang{
+  background:var(--code-bg);border:1px solid var(--line);border-bottom:0;border-radius:10px 10px 0 0;
+  padding:5px 12px 4px;font:11px/1.4 var(--mono);color:var(--fg3);text-transform:lowercase;
+}
+.code-wrap.has-lang>pre{border-top-left-radius:0;border-top-right-radius:0;border-top:1px dashed var(--line)}
+.code-wrap.has-lang>.copy-btn{top:3px}
+/* 语法高亮（highlight.js 的 token 类，按我们自己的深浅两套色） */
+.hljs-comment,.hljs-quote,.hljs-meta{color:var(--fg3);font-style:italic}
+.hljs-keyword,.hljs-selector-tag,.hljs-built_in,.hljs-literal,.hljs-doctag{color:#d98d6f}
+.hljs-string,.hljs-regexp,.hljs-addition,.hljs-template-tag,.hljs-char.escape_{color:#9fbf7f}
+.hljs-number,.hljs-symbol,.hljs-bullet,.hljs-variable.constant_{color:#d6b26a}
+.hljs-title,.hljs-title.function_,.hljs-title.class_,.hljs-section{color:#8fb0d4}
+.hljs-attr,.hljs-attribute,.hljs-property,.hljs-params,.hljs-variable,.hljs-template-variable{color:#c3a8e6}
+.hljs-type,.hljs-name,.hljs-selector-class,.hljs-selector-id{color:#7fc4b8}
+.hljs-deletion{color:var(--err)}
+.hljs-emphasis{font-style:italic}.hljs-strong{font-weight:600}
+html[data-theme="light"] .hljs-keyword,html[data-theme="light"] .hljs-selector-tag,html[data-theme="light"] .hljs-built_in,html[data-theme="light"] .hljs-literal,html[data-theme="light"] .hljs-doctag{color:#b4502e}
+html[data-theme="light"] .hljs-string,html[data-theme="light"] .hljs-regexp,html[data-theme="light"] .hljs-addition,html[data-theme="light"] .hljs-template-tag{color:#3d7a2a}
+html[data-theme="light"] .hljs-number,html[data-theme="light"] .hljs-symbol,html[data-theme="light"] .hljs-bullet{color:#9a6a00}
+html[data-theme="light"] .hljs-title,html[data-theme="light"] .hljs-section{color:#2f6aa8}
+html[data-theme="light"] .hljs-attr,html[data-theme="light"] .hljs-attribute,html[data-theme="light"] .hljs-property,html[data-theme="light"] .hljs-params,html[data-theme="light"] .hljs-variable,html[data-theme="light"] .hljs-template-variable{color:#7650c0}
+html[data-theme="light"] .hljs-type,html[data-theme="light"] .hljs-name,html[data-theme="light"] .hljs-selector-class,html[data-theme="light"] .hljs-selector-id{color:#1f7a6c}
+/* 删除线、任务清单、公式 */
+.bubble del{color:var(--fg3)}
+.bubble li.task{list-style:none;margin-inline-start:-19px}
+.bubble li.task>input{margin:0 7px 0 0;vertical-align:-2px;width:14px;height:14px}
+html[dir="rtl"] .bubble li.task>input{margin:0 0 0 7px}
+.math-d{display:block;overflow-x:auto;overflow-y:hidden;margin:10px 0;padding:2px 0;text-align:center;-webkit-overflow-scrolling:touch}
+.math:not(.k){font-family:var(--mono);font-size:.9em;color:var(--fg2)}
+.katex{font-size:1.08em}
 
 /* 表格（/context 等命令会输出） */
 .tbl-wrap{overflow-x:auto;margin:9px 0;-webkit-overflow-scrolling:touch}
@@ -290,7 +339,8 @@ td{color:var(--fg2)}
 #run-strip button{background:var(--bg3);border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:3px 10px;font-size:12px;flex:0 0 auto}
 #run-strip .rs-x{border:none;background:none;color:var(--fg3);padding:2px 6px}
 #run-strip .rs-tasks{border:1px solid var(--line);border-radius:10px;background:var(--bg2);padding:6px 10px;display:flex;flex-direction:column;gap:4px}
-#run-strip .rs-thead{cursor:pointer;user-select:none}
+#run-strip .rs-thead,#run-strip .rs-bhead{cursor:pointer;user-select:none}
+#run-strip .rs-blist{max-height:30vh;overflow-y:auto;display:flex;flex-direction:column;gap:3px;padding-top:2px}
 #run-strip .rs-tcount{flex:0 0 auto;font-variant-numeric:tabular-nums;color:var(--fg2)}
 #run-strip .rs-tbar{flex:0 0 54px;height:4px;border-radius:2px;background:var(--bg3);overflow:hidden}
 #run-strip .rs-tbar i{display:block;height:100%;background:var(--accent);transition:width .3s}
@@ -596,6 +646,8 @@ a.weblink{overflow-wrap:anywhere}
 .mp-item small{display:block;color:var(--fg3);font-size:11px;margin-top:1px}
 .mp-item.cur{background:var(--bg3)}
 .mp-item.cur span{color:var(--accent)}
+.mp-item .ccv-ok{color:var(--ok);font-weight:600}
+.mp-item small.ccv-bad{color:var(--warn)}
 .mp-item:active{background:var(--bg3)}
 .mp-note{margin:6px 4px 0}
 .mp-follow{margin:0 4px 2px}
@@ -909,6 +961,9 @@ html[dir="rtl"] .bubble code,html[dir="rtl"] .bubble pre,html[dir="rtl"] .mono{d
 #vw-info{margin:0;font-size:10.5px}
 .vw-acts{display:flex;gap:5px;flex:0 0 auto;overflow-x:auto;max-width:62vw}
 .vw-acts .btn{width:auto;margin:0;flex:0 0 auto;white-space:nowrap}
+.ico-share{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;vertical-align:-3px;margin-right:4px}
+.vw-ico{padding-left:9px;padding-right:9px}
+.vw-ico .ico-share{margin-right:0;vertical-align:-3px}
 #vw-body{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
 .vw-empty{margin:auto;display:flex;flex-direction:column;gap:10px;align-items:center;color:var(--fg2);font-size:13.5px;text-align:center;padding:20px}
 .vw-empty .btn{width:auto;margin:0}
@@ -1169,6 +1224,13 @@ html[dir="rtl"] .field select{background-position:12px 50%,17px 50%}   /* 从右
 .vw-mded .cm-line.cm-md-pre-top{border-top:1px solid var(--line);border-start-start-radius:10px;border-start-end-radius:10px;padding-top:5px}
 .vw-mded .cm-line.cm-md-pre-bot{border-bottom:1px solid var(--line);border-end-start-radius:10px;border-end-end-radius:10px;padding-bottom:5px}
 .vw-mded .cm-line.cm-md-fence{color:var(--fg3)}
+.vw-mded .cm-line.cm-md-fence-hid{font-size:.72em;line-height:1.5}
+.vw-mded .cm-line.cm-md-pre-bot.cm-md-fence-hid{line-height:.5}
+.vw-mded .cm-md-lang{color:var(--fg3);text-transform:lowercase}
+.vw-mded .cm-md-math{font-family:var(--mono);font-size:.9em;color:var(--fg2)}
+.vw-mded .cm-md-math .katex{font-family:KaTeX_Main,serif;color:var(--fg)}
+.vw-mded .cm-md-math-d{display:inline-block;width:100%;text-align:center;overflow-x:auto;overflow-y:hidden;vertical-align:middle;padding:4px 0}
+.vw-mded .cm-line.cm-md-math-hid{line-height:0;font-size:0;padding-block:0}
 .vw-mded .cm-md-bullet{color:var(--accent);font-weight:700;padding:0 .2em}
 .vw-mded .cm-md-olmark{color:var(--fg2)}
 .vw-mded .cm-md-check{width:1.05em;height:1.05em;vertical-align:-.15em;margin:0 .4em 0 0}
@@ -1497,6 +1559,8 @@ html[data-skin="qiusuo"] #sub-title:is(.warn,.live){
 .sl p.clamp.open{max-height:none;-webkit-mask-image:none;mask-image:none}
 .sl p code{font-size:11.5px}
 .sc{flex:none;display:flex;align-items:center;gap:8px;max-width:58%}
+/* 右格最多 58%：俄语等长文案的按钮在这里允许折成两行，不冲出设置栏（全局 .btn 是 nowrap） */
+#set-ov .sc .btn{white-space:normal;text-align:center;overflow-wrap:anywhere}
 .set-cat .sc select{width:auto;min-width:180px;max-width:100%;margin:0}
 .set-cat .sc input:not([type=checkbox]):not([type=radio]){width:180px;margin:0}
 .set-cat .sc input.narrow:not([type=checkbox]):not([type=radio]){width:88px}
@@ -1961,7 +2025,10 @@ button.tile:hover{border-color:var(--accent-dim)}
 /* 设置行（照稿）：说明默认一行，点开看全文；.stack 行控件另起一行 */
 #set-ov .sl p.clamp:not(.open){max-height:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-mask-image:none;mask-image:none}
 #set-ov .srow.stack{flex-wrap:wrap}
-#set-ov .srow.stack > .sc{flex:1 1 100%;display:flex;justify-content:flex-start}
+/* 窄屏整页里带下拉的行改成竖排（见 set-one 那条）：竖排时不能再 wrap，多行列容器每列宽度按内容最宽的算，一行不换的说明会把整页撑出横向滚动 */
+#tab-settings.set-one .srow.stack{flex-wrap:nowrap}
+#set-ov .srow.stack > .sc{flex:1 1 100%}
+#set-ov .srow.stack > .sc{display:flex;justify-content:flex-start}
 #set-ov .seg-mirror{flex-wrap:wrap}
 #set-ov .sc #set-parallel{width:64px;margin-inline-start:8px}
 #set-ov .srow > .sl{flex:1 1 auto;min-width:0}
@@ -2107,10 +2174,11 @@ body{line-height:var(--phi)}
 .mp-head b{font-size:15px}
 .mp-lbl{margin:var(--g2) 0 var(--g1)}
 .mp-eff{padding:0}
-.mp-seg{display:flex;width:100%}
-.mp-seg button{flex:1;padding:6px 4px}
-.mp-provseg{flex-wrap:wrap;gap:4px 0}
-.mp-provseg button{flex:1 0 auto;white-space:nowrap;padding:6px 10px}
+/* 两排都是单行横滚：接口配多了、语言长了都不折行，不挤占下面的模型列表；横滑手势见到能横滚的元素会让路 */
+.mp-seg{display:flex;width:100%;box-sizing:border-box;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
+.mp-seg::-webkit-scrollbar{display:none}
+.mp-seg button{flex:1 0 auto;padding:6px 8px}
+.mp-provseg button{padding:6px 10px}
 .mp-provseg button.cur:not(.on)::after{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-inline-start:5px;vertical-align:2px}
 .mp-provhint{margin:6px 4px 0}
 .mp-sb{margin:0 0 var(--g1);background:var(--panel)}
@@ -2368,6 +2436,8 @@ html:not(.dock-l) .drawer-panel{border-start-end-radius:var(--g4);border-end-end
 /* 设置卡片是模态：遮罩盖住整个窗口（侧栏、右侧窗格一起压暗），卡片浮在所有窗格之上、居中；
    之前 z 56 低于窗格的 70，宽屏开着终端时卡片被窗格切掉一截 */
 #set-ov{z-index:80}
+/* Claude Code 版本选单是从设置里开的，得压在设置卡片（80）之上；原先 56，打开了却被设置挡在下面，像是选不了 */
+#ccv-pick{z-index:90}
 .pj-card{-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
 
 /* ── 字体（自带，不受系统字体主题影响）──────────────────────────────
@@ -2423,7 +2493,13 @@ html.wel #wl-below{display:block;flex:1 1 0;min-height:0;overflow:auto;padding:v
 html.wel .msg.welcome{width:100%;margin-bottom:var(--g4)}
 html.wel .msg.welcome .who,html.wel .msg.welcome + .msg-acts,html.wel .msg.welcome .msg-acts{display:none}
 .wl-hero{display:flex;align-items:center;justify-content:center;gap:var(--g3);text-align:center;flex-wrap:wrap}
-.wl-mark{width:52px;height:52px;flex:none;background:var(--accent);-webkit-mask:url(mark.png) center/contain no-repeat;mask:url(mark.png) center/contain no-repeat}
+.wl-mark{width:52px;height:52px;flex:none;fill:none;stroke:var(--fg);stroke-width:2.6;stroke-linecap:round}
+.wl-mark circle{fill:var(--zy-blue,var(--accent));stroke:none;opacity:0;animation:wl-dot .3s .55s ease-out forwards}
+/* 没开始写的弧要整个藏起来：长度 0 的虚线段带圆头线帽，照样画出一个小圆点（开头那几个黑点） */
+.wl-mark path{stroke-dasharray:1;stroke-dashoffset:1;opacity:0;animation:wl-draw .9s ease-out forwards}
+.wl-mark path:nth-of-type(2){animation-delay:.12s}.wl-mark path:nth-of-type(3){animation-delay:.24s}
+@keyframes wl-draw{0%{stroke-dashoffset:1;opacity:0}1%{opacity:1}to{stroke-dashoffset:0;opacity:1}}@keyframes wl-dot{to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.wl-mark path,.wl-mark circle{animation:none;stroke-dashoffset:0;opacity:1}}
 .wl-greet{margin:0;font-family:var(--font-serif);font-weight:400;font-size:clamp(19px,4.2cqi,31px);line-height:1.3;letter-spacing:.01em;color:var(--fg)}
 html.wel .msg.welcome .setup-guide{text-align:start;margin-top:var(--g4)}
 /* 首屏的输入框更舒展：两行高，像一张卡片 */
@@ -2468,7 +2544,6 @@ html.wel #hint-row #proj-chip:not(.hidden) ~ #model-chip > .chip:first-child{mar
 /* 首屏字号按对话栏宽度（cqi）算，不按整窗：开着右侧窗格时栏窄了，问候语跟着收 */
 html.wel #chat{container-type:inline-size}
 .wl-mark{width:clamp(40px,7cqi,52px);height:clamp(40px,7cqi,52px)}
-html.wel-narrow .wl-ex [data-ex]:nth-child(3){display:none}
 html.wel-narrow .wl-hero{gap:var(--g2)}
 /* 头像：设了图片就铺满圆，不写字母 */
 .acct-av.img{background:center/cover no-repeat var(--bg3);color:transparent}

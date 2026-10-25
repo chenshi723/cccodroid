@@ -11,8 +11,8 @@
 //    拿出去  /api/file       ← 消息里的本地图片自动内联、点开大图
 //    看得见  openFiles()     ← 全屏文件浏览器，能预览能引用
 // ─────────────────────────────────────────────────────────────────────
-// 宿主 WebView 用 ?t=令牌 首次加载（网关据此种 Cookie）；令牌别留在地址里
-if (/[?&]t=/.test(location.search)) history.replaceState(null, "", location.pathname + location.hash);
+// 宿主 WebView 用 ?t=令牌&k=桥口令 首次加载（网关据 t 种 Cookie，k 见 theme.js）；两个都别留在地址里
+if (/[?&](t|k)=/.test(location.search)) history.replaceState(null, "", location.pathname + location.hash);
 
 (() => {
   "use strict";
@@ -196,6 +196,17 @@ if (/[?&]t=/.test(location.search)) history.replaceState(null, "", location.path
     saveAs(p);
   }, true);
 
+  // 查看器 / 图片灯箱里的「分享」：文件本来就在本机，再存一份没意义，交给系统分享面板发到别的应用。
+  // 不在 cccodroid 里（开发端、浏览器）时退回下载
+  async function shareFile(p) {
+    if (!canShare()) { location.href = fileUrl(p, true); return; }
+    try {
+      const j = await post("/api/app/share_file", { path: p });
+      if (!j.ok) toast(j.message || t("分享失败"), true);
+    } catch (e) { toast(t("分享失败") + "：" + e.message, true); }
+  }
+  const shareIco = () => `<svg class="ico-share" viewBox="0 0 24 24">${ICONS.share}</svg>`;
+
   function setStatus(text, cls) { chatStatus = [text, cls || ""]; if (!curPage) { subEl.textContent = text; subEl.className = cls || ""; } }
 
   // ── 跨刷新要记住的东西 ────────────────────────────────────────────
@@ -276,7 +287,32 @@ if (/[?&]t=/.test(location.search)) history.replaceState(null, "", location.path
   const PATH_RE = /(^|[\s(（:：,，、;'"`“])((?:\/storage|\/sdcard|\/data|\/mnt)(?:\/[\w.\-+@%~=\u4e00-\u9fff]+)+\/?)(:\d+(?::\d+)?)?/g;
   const pathLink = (p, line, label) =>
     `<a class="fpath" data-path="${p}" href="#" title="${t("在查看器中打开")}">${label || p + (line || "")}</a>`;
+  // 行内公式：$…$、\(…\)、行内的 $$…$$。先于转义从原文里抠出来（换成 \u0001N\u0001），代码片段里的不认。
+  // $ 的规矩照 pandoc：开头 $ 后面不能是空格；收尾 $ 前面不能是空格、后面不能紧跟数字或字母，
+  // 中间不许再有 $。这样 $5 到 $10、$PATH:$HOME、$HOME 这类都不会被当成公式。
+  function holdMath(s, keep) {
+    const put = (tex, raw) => "\u0001" + (keep.push(`<span class="math" data-tex="${esc(tex)}">${esc(raw)}</span>`) - 1) + "\u0001";
+    return s.split(/(`[^`\n]+`)/).map((seg, i) => {
+      if (i % 2) return seg;
+      seg = seg.replace(/\$\$([^$\n]+?)\$\$/g, (raw, tex) => put(tex, raw))
+        .replace(/\\\((.+?)\\\)/g, (raw, tex) => put(tex, raw));
+      let out = "", i0 = 0;
+      for (let a = seg.indexOf("$"); a >= 0; ) {
+        const b = seg.indexOf("$", a + 1);
+        if (b < 0) break;
+        const okA = seg[a - 1] !== "\\" && !/\s/.test(seg[a + 1] || " ");
+        const okB = !/\s/.test(seg[b - 1]) && !/[\w$]/.test(seg[b + 1] || "");
+        if (okA && okB && b > a + 1) {
+          out += seg.slice(i0, a) + put(seg.slice(a + 1, b), seg.slice(a, b + 1));
+          i0 = b + 1; a = seg.indexOf("$", i0);
+        } else a = b;                                   // 这个 $ 不成对，从下一个 $ 重新当开头
+      }
+      return (out + seg.slice(i0)).replace(/\\\$/g, "$");   // \$ 是转义，显示成 $
+    }).join("");
+  }
   function inlineMd(s) {
+    const maths = [];
+    s = holdMath(s, maths);
     // 代码片段先换成占位符（片段里整段是路径的照样能点），再统一处理链接、加粗：
     // 这样 **`代码`** 这种跨着片段的加粗也能配上对，片段里的 * 也不会被当成强调
     const keep = [];
@@ -302,9 +338,12 @@ if (/[?&]t=/.test(location.search)) history.replaceState(null, "", location.path
         const tail = line ? "" : (p.match(/[.]+$/) || [""])[0];     // 句末的点不算路径
         return pre + hold(pathLink(p.slice(0, p.length - tail.length), line)) + tail;
       })
+      .replace(/\*\*\*([^*\n]+)\*\*\*/g, "<strong><em>$1</em></strong>")
       .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
       .replace(/(^|[\s(])\*([^*\n]+)\*/g, "$1<em>$2</em>")
-      .replace(/\u0000(\d+)\u0000/g, (_, n) => keep[n]);
+      .replace(/~~([^~\n]+)~~/g, "<del>$1</del>")
+      .replace(/\u0000(\d+)\u0000/g, (_, n) => keep[n])
+      .replace(/\u0001(\d+)\u0001/g, (_, n) => maths[n]);
   }
 
   /** 支持标题/列表/表格/代码块/引用/分隔线；img(url) → 图片地址，给了才渲染 ![](…) */
@@ -313,9 +352,15 @@ if (/[?&]t=/.test(location.search)) history.replaceState(null, "", location.path
     const prev = mdImg; mdImg = img || null;
     try { return renderMdLines(text); } finally { mdImg = prev; }
   }
+  // 代码块：```后面写了语言就在顶上标出来，并留 data-lang 给 enhanceMd 上高亮。没写完的块（流式中）也同样排版，免得收尾时跳一下
+  const codeBlock = (lang, buf) =>
+    `<div class="code-wrap${lang ? " has-lang" : ""}">${lang ? `<div class="code-lang">${esc(lang)}</div>` : ""}`
+    + `<pre><code${lang ? ` data-lang="${esc(lang.toLowerCase())}"` : ""}>${esc(buf.join("\n"))}</code></pre><button class="copy-btn">${t("复制")}</button></div>`;
+  const mathBlock = (tex, raw) => `<div class="math math-d" data-tex="${esc(tex)}">${esc(raw)}</div>`;
   function renderMdLines(text) {
     const lines = String(text).split("\n");
-    let out = "", inCode = false, codeBuf = [], listType = null, inTable = false, tblRows = [];
+    let out = "", inCode = false, codeBuf = [], codeLang = "", listType = null, inTable = false, tblRows = [];
+    let inMath = false, mathBuf = [];
 
     const closeList = () => { if (listType) { out += `</${listType}>`; listType = null; } };
     const flushTable = () => {
@@ -334,15 +379,25 @@ if (/[?&]t=/.test(location.search)) history.replaceState(null, "", location.path
     };
 
     for (const raw of lines) {
-      const fence = raw.match(/^\s*```(\w*)\s*$/);
-      if (fence) {
+      const fence = raw.match(/^\s*```\s*([\w+#.-]*)\s*$/);
+      if (fence && !inMath) {
         if (inCode) {
-          out += `<div class="code-wrap"><pre><code>${esc(codeBuf.join("\n"))}</code></pre><button class="copy-btn">${t("复制")}</button></div>`;
+          out += codeBlock(codeLang, codeBuf);
           codeBuf = []; inCode = false;
-        } else { closeList(); flushTable(); inCode = true; }
+        } else { closeList(); flushTable(); inCode = true; codeLang = fence[1]; }
         continue;
       }
       if (inCode) { codeBuf.push(raw); continue; }
+
+      // 公式块：独占一行的 $$…$$ / \[…\]，或者 $$ / \[ 开头、$$ / \] 收尾的多行
+      if (inMath) {
+        if (/^\s*(\$\$|\\\])\s*$/.test(raw)) { out += mathBlock(mathBuf.join("\n"), "$$" + mathBuf.join("\n") + "$$"); mathBuf = []; inMath = false; }
+        else mathBuf.push(raw);
+        continue;
+      }
+      const m1 = raw.match(/^\s*\$\$(.+?)\$\$\s*$/) || raw.match(/^\s*\\\[(.+?)\\\]\s*$/);
+      if (m1) { closeList(); flushTable(); out += mathBlock(m1[1], raw.trim()); continue; }
+      if (/^\s*(\$\$|\\\[)\s*$/.test(raw)) { closeList(); flushTable(); inMath = true; continue; }
 
       if (/^\s*\|.*\|\s*$/.test(raw)) { closeList(); inTable = true; tblRows.push(raw.trim()); continue; }
       flushTable();
@@ -358,7 +413,11 @@ if (/[?&]t=/.test(location.search)) history.replaceState(null, "", location.path
       const ul = raw.match(/^\s*[-*+]\s+(.*)$/);
       if (ul) {
         if (listType !== "ul") { closeList(); out += "<ul>"; listType = "ul"; }
-        out += `<li>${inlineMd(ul[1])}</li>`; continue;
+        const task = ul[1].match(/^\[([ xX])\]\s+(.*)$/);      // 任务清单 - [ ] / - [x]
+        out += task
+          ? `<li class="task"><input type="checkbox" disabled${task[1] === " " ? "" : " checked"}>${inlineMd(task[2])}</li>`
+          : `<li>${inlineMd(ul[1])}</li>`;
+        continue;
       }
       const ol = raw.match(/^\s*(\d+)[.)]\s+(.*)$/);
       if (ol) {
@@ -371,7 +430,8 @@ if (/[?&]t=/.test(location.search)) history.replaceState(null, "", location.path
       closeList();
       out += `<p>${inlineMd(raw)}</p>`;
     }
-    if (inCode && codeBuf.length) out += `<pre><code>${esc(codeBuf.join("\n"))}</code></pre>`;
+    if (inCode && codeBuf.length) out += codeBlock(codeLang, codeBuf);
+    if (inMath && mathBuf.length) out += `<p>${esc("$$ " + mathBuf.join(" "))}</p>`;   // 流式中还没收尾的公式块，先按原文显示
     flushTable(); closeList();
     return out;
   }
@@ -448,18 +508,53 @@ if (/[?&]t=/.test(location.search)) history.replaceState(null, "", location.path
   function setHtml(el, html) {
     el.innerHTML = html;
     embedLocalImages(el);
+    enhanceMd(el);
     return el;
+  }
+
+  // ── 代码高亮 / 公式：库按需加载，页面里真出现了才去拉 ─────────────────
+  const loadOnce = {};
+  function loadScript(src, css) {
+    return loadOnce[src] || (loadOnce[src] = new Promise((ok, bad) => {
+      if (css) { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = css; document.head.appendChild(l); }
+      const s = document.createElement("script");
+      s.src = src; s.onload = ok; s.onerror = () => { delete loadOnce[src]; bad(new Error("load " + src)); };
+      document.head.appendChild(s);
+    }));
+  }
+  function enhanceMd(el) {
+    if (!el || !el.querySelector) return;
+    if (el.querySelector("code[data-lang]:not(.hl)")) {
+      loadScript("/vendor/hljs/highlight.min.js").then(() => {
+        for (const c of el.querySelectorAll("code[data-lang]:not(.hl)")) {
+          c.classList.add("hl");
+          const lang = window.hljs.getLanguage(c.dataset.lang) ? c.dataset.lang : null;
+          if (!lang || c.textContent.length > 200000) continue;      // 不认识的语言、超长的块不高亮
+          try { c.innerHTML = window.hljs.highlight(c.textContent, { language: lang, ignoreIllegals: true }).value; } catch {}
+        }
+      }).catch(() => {});
+    }
+    if (el.querySelector(".math:not(.k)")) {
+      loadScript("/vendor/katex/katex.min.js", "/vendor/katex/katex.min.css").then(() => {
+        for (const m of el.querySelectorAll(".math:not(.k)")) {
+          m.classList.add("k");
+          try { window.katex.render(m.dataset.tex, m, { displayMode: m.classList.contains("math-d"), throwOnError: false, output: "html" }); } catch {}
+        }
+      }).catch(() => {});
+    }
   }
 
   // ── 图片查看器 ────────────────────────────────────────────────────
   function openLightbox(path) {
     $("lightbox-img").src = fileUrl(path);
     $("lightbox-cap").textContent = path.split("/").pop();
-    $("lightbox-dl").href = fileUrl(path, true);
+    lightboxEl.dataset.path = path;
+    $("lightbox-dl").innerHTML = shareIco() + esc(t("分享"));
     lightboxEl.classList.remove("hidden");
   }
   lightboxEl.addEventListener("click", (e) => {
     if (e.target === lightboxEl || e.target.id === "lightbox-close") lightboxEl.classList.add("hidden");
+    if (e.target.closest("#lightbox-dl")) shareFile(lightboxEl.dataset.path);
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") lightboxEl.classList.add("hidden");

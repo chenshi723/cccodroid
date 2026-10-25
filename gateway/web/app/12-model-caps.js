@@ -182,6 +182,7 @@
       provBox.innerHTML = `<div class="seg mp-seg mp-provseg">${ps.map((p) =>
         `<button type="button" class="${p.id === browse ? "on" : ""}${p.id === curProv() ? " cur" : ""}" data-prov="${esc(p.id)}">${esc(provLabel(p.id))}</button>`).join("")}</div>` +
         (browse !== curProv() ? `<div class="tiny mp-provhint">${esc(t("点一个模型，这个会话就换到「{name}」", { name: provLabel(browse) }))}</div>` : "");
+      provBox.querySelector("button.on")?.scrollIntoView({ block: "nearest", inline: "nearest" });   // 横滚里选中的那家露出来
     };
     paintProv();
     provBox.addEventListener("click", async (e) => {
@@ -374,6 +375,7 @@
       if (pe && document.activeElement !== pe) { pe.max = state.settings.maxParallelCap || 16; pe.value = state.settings.maxParallel || 3; }
       $("set-static").checked = state.settings.staticCompat !== false;
       $("set-idlecompact").checked = state.settings.idleCompaction !== false;
+      $("set-workisland").checked = state.settings.workIsland === true;
       loadExecMode();
     } catch {}
   }
@@ -448,6 +450,7 @@
     loadExecMode();
   });
   $("set-idlecompact").addEventListener("change", (e) => saveSettings({ idleCompaction: e.target.checked }));
+  $("set-workisland").addEventListener("change", (e) => saveSettings({ workIsland: e.target.checked }));
   $("set-parallel").addEventListener("change", (e) => {
     const v = Math.round(Number(e.target.value));
     if (!(v >= 1)) { e.target.value = state.settings.maxParallel || 3; return; }

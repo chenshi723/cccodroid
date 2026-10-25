@@ -70,7 +70,7 @@ function safeWritePath(p) {
 }
 
 /** 供文件面板用的快捷入口 */
-function fileRoots() {
+export function fileRoots() {
   const out = [];
   const seen = new Set();
   const add = (x) => {

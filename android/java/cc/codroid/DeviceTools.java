@@ -312,24 +312,11 @@ final class DeviceTools {
     private static JSONObject shareFile(Context c, JSONObject a) throws Exception {
         File f = new File(a.optString("path"));
         if (!f.isFile()) return fail(Tr.t("文件不存在：") + f);
+        try { f = Share.shareable(c, f); } catch (Exception e) { return fail(e.getMessage()); }
         Uri u = Share.uriFor(c, f);
-        if (u == null) {
-            // 分享只认导出目录：拷一份过去（别的应用拿到的是这一份的只读授权）
-            if (f.length() > 512L << 20) return fail(Tr.t("文件超过 512 MB，不分享"));
-            File dir = new File(new Env(c).home, "exports/shared");
-            dir.mkdirs();
-            File dst = new File(dir, f.getName());
-            java.nio.file.Files.copy(f.toPath(), dst.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            f = dst;
-            u = Share.uriFor(c, f);
-            if (u == null) return fail(Tr.t("这个文件不能分享：") + f);
-        }
+        if (u == null) return fail(Tr.t("这个文件不能分享：") + f);
         String mime = a.optString("mime", "");
-        if (mime.isEmpty()) {
-            String ext = android.webkit.MimeTypeMap.getFileExtensionFromUrl(f.getName());
-            mime = ext == null ? null : android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext.toLowerCase());
-            if (mime == null) mime = "application/octet-stream";
-        }
+        if (mime.isEmpty()) mime = Share.mimeOf(f);
         Intent send = new Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM, u)
             .putExtra(Intent.EXTRA_SUBJECT, f.getName()).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         send.setClipData(ClipData.newRawUri(f.getName(), u));

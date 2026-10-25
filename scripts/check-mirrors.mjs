@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 核对 cccodroid.net 上的镜像是否跟得上：Claude Code 版本号三处一致、组件包在 dl.cccodroid.net 上都在且大小对。
+// 核对 cccodroid.net 上的镜像是否跟得上：最新正式版 APK 两条线都在且大小对、Claude Code 版本号三处一致、组件包在 dl.cccodroid.net 上都在且大小对。
 // 只读，不验签（验签由客户端和生成器负责），用来发版前或出问题时快速看一眼。用法：node scripts/check-mirrors.mjs
 const get = async (url, method = "GET") => {
   const r = await fetch(url, { method, signal: AbortSignal.timeout(30000) });
@@ -7,6 +7,19 @@ const get = async (url, method = "GET") => {
   return r;
 };
 let bad = 0;
+
+// APK：GitHub 最新正式版的两个安装包，在 cccodroid.net/dl/ 与 dl.cccodroid.net/dl/ 上都要在、大小一致；固定直链也要指向它
+try {
+  const rel = await (await get("https://api.github.com/repos/greyoak111/cccodroid/releases/latest")).json();
+  for (const a of rel.assets.filter((x) => /^cccodroid(-36)?\.apk$/.test(x.name))) {
+    const got = [];
+    for (const u of [`https://cccodroid.net/dl/${rel.tag_name}/${a.name}`, `https://dl.cccodroid.net/dl/${rel.tag_name}/${a.name}`, `https://cccodroid.net/dl/${a.name}`, `https://dl.cccodroid.net/dl/${a.name}`])
+      got.push(await get(u, "HEAD").then((r) => +r.headers.get("content-length"), () => 0));
+    const ok = got.every((n) => n === a.size);
+    if (!ok) bad++;
+    console.log(`${ok ? "✓" : "✗"} APK ${rel.tag_name} ${a.name}：GitHub ${a.size} / 主站 ${got[0]} / dl ${got[1]} / 主站直链 ${got[2]} / dl 直链 ${got[3]}`);
+  }
+} catch (e) { bad++; console.log(`✗ APK：${e.message}`); }
 
 for (const ch of ["stable", "latest"]) {
   const v = await Promise.all([

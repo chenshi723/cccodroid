@@ -353,7 +353,7 @@
     path: "", kind: "", size: 0, mode: "", text: "", mtime: 0, dirty: false,
     pdf: null, pdfObs: null, zoom: 1, wrap: localStorage.getItem("cc.vw.wrap") !== "0",
   };
-  const VW_EDIT_MAX = 2 * 1024 * 1024;
+  const VW_EDIT_MAX = 16 * 1024 * 1024;   // 几百万字的长稿也要能开；预览分段渲染、字数增量统计
   const isMd = (p) => /\.(md|markdown|mdx)$/i.test(p);
   const isHtml = (p) => /\.html?$/i.test(p);
 
@@ -385,17 +385,20 @@
     $("vw-body").innerHTML = `<div class="vw-empty">
       <div>${t("这种文件没有内置预览。")}</div>
       ${VW.size <= VW_EDIT_MAX ? `<button class="btn ghost sm" data-a="astext">${t("当作文本打开")}</button>` : ""}
-      <a class="btn ghost sm" href="${fileUrl(path, true)}" download>${t("下载")}</a></div>`;
+      <button class="btn ghost sm" data-a="share">${shareIco()}${t("分享")}</button></div>`;
     $("vw-body").querySelector('[data-a="astext"]')?.addEventListener("click", () => { VW.kind = "text"; vwLoadText("edit"); });
   }
 
   /** 顶栏右侧的按钮：[文字, 动作, 是否高亮] */
   function vwActs(list) {
-    const base = [[t("插入 @路径"), "insert"], ["⤓", "download"]];
+    const base = [[t("插入 @路径"), "insert"]];
     $("vw-acts").innerHTML = list.concat(base).map(([l, a, on]) =>
-      `<button class="btn ${on ? "" : "ghost"} sm" data-a="${a}">${esc(l)}</button>`).join("");
+      `<button class="btn ${on ? "" : "ghost"} sm" data-a="${a}">${esc(l)}</button>`).join("") +
+      `<button class="btn ghost sm vw-ico" data-a="share" title="${esc(t("分享"))}" aria-label="${esc(t("分享"))}">${shareIco()}</button>`;
   }
 
+  // 预览不了 / 转换失败时正文里的「分享」按钮
+  $("vw-body").addEventListener("click", (e) => { if (e.target.closest('.vw-empty [data-a="share"]')) shareFile(VW.path); });
   $("vw-acts").addEventListener("click", (e) => {
     const b = e.target.closest("[data-a]");
     if (!b) return;
@@ -405,7 +408,7 @@
       toast(t("已插入文件路径"));
       return closeViewer();
     }
-    if (a === "download") { location.href = fileUrl(VW.path, true); return; }
+    if (a === "share") return shareFile(VW.path);
     if (a === "save") return vwSave(false);
     if (a === "md") { VW.text = vwText(); if (isMd(VW.path)) localStorage.setItem("cc.vw.mdmode", "md"); return vwRenderText("md"); }
     if (a === "edit" && VW.mode === "html") {
@@ -449,28 +452,51 @@
   function vwInfo() {
     let s = fmtSize(VW.size) + (VW.gitInfo || "");
     if (VW.ed) {
-      s += " · " + t("{n} 字", { n: VW.ed.words().toLocaleString() });
+      const w = VW.ed.words();
+      s += " · " + (w == null ? t("统计字数…") : t("{n} 字", { n: w.toLocaleString() }));
       const sel = VW.ed.selWords();
       if (sel) s += " · " + t("选中 {n} 字", { n: sel.toLocaleString() });
     }
     $("vw-info").textContent = s;
   }
 
-  // 草稿：没保存的修改每隔一会儿存进 localStorage，应用被杀、WebView 重载也不丢；保存或放弃后清掉
+  // 草稿：没保存的修改每隔一会儿存进 IndexedDB（localStorage 只有几 MB，长稿放不下），
+  // 应用被杀、WebView 重载也不丢；保存或放弃后清掉。0.4.4 之前存在 localStorage 的旧草稿照样能恢复
   const draftKey = () => "cc.draft:" + VW.path;
+  let draftDb = null;
+  function draftIdb(mode, fn) {
+    draftDb = draftDb || new Promise((ok, no) => {
+      const r = indexedDB.open("cc-drafts", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("d");
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => { draftDb = null; no(r.error); };
+    });
+    return draftDb.then((db) => new Promise((ok, no) => {
+      const tx = db.transaction("d", mode), q = fn(tx.objectStore("d"));
+      tx.oncomplete = () => ok(q && q.result);
+      tx.onerror = tx.onabort = () => no(tx.error);
+    }));
+  }
   function draftSave() {
     clearTimeout(VW.dt);
     VW.dt = setTimeout(() => {
       if (!VW.dirty) return;
-      const text = vwText();
-      if (text.length > 1024 * 1024) return;
-      try { localStorage.setItem(draftKey(), JSON.stringify({ at: Date.now(), text })); } catch {}
+      const key = draftKey(), d = { at: Date.now(), text: vwText() };
+      draftIdb("readwrite", (os) => os.put(d, key)).catch(() => {
+        if (d.text.length <= 1024 * 1024) try { localStorage.setItem(key, JSON.stringify(d)); } catch {}
+      });
     }, 800);
   }
-  function draftClear() { clearTimeout(VW.dt); try { localStorage.removeItem(draftKey()); } catch {} }
-  function draftTake() {
-    let d;
-    try { d = JSON.parse(localStorage.getItem(draftKey()) || "null"); } catch {}
+  function draftClear() {
+    clearTimeout(VW.dt);
+    const key = draftKey();
+    try { localStorage.removeItem(key); } catch {}
+    draftIdb("readwrite", (os) => os.delete(key)).catch(() => {});
+  }
+  async function draftTake() {
+    let d = null;
+    try { d = await draftIdb("readonly", (os) => os.get(draftKey())); } catch {}
+    if (!d) try { d = JSON.parse(localStorage.getItem(draftKey()) || "null"); } catch {}
     if (!d || typeof d.text !== "string") return null;
     if (d.text === VW.text) { draftClear(); return null; }
     if (confirm(t("上次有没保存的修改（{time}），要恢复吗？\n确定：恢复\n取消：丢掉草稿", { time: new Date(d.at).toLocaleString() }))) return d.text;
@@ -495,7 +521,8 @@
       return;
     }
     VW.dirty = false;
-    const draft = draftTake();
+    const path = VW.path, draft = await draftTake();
+    if (VW.path !== path) return;
     if (draft != null) { VW.text = draft; VW.dirty = true; mode = "edit"; }
     vwRenderText(mode);
     vwGitCheck();
@@ -589,6 +616,7 @@
   function gutDraw() {
     const ta = $("vw-text"); if (!ta) return;
     const wrap = ta.parentElement, gut = wrap.querySelector(".vw-gut"), gin = wrap.querySelector(".vw-gut-in");
+    if (ta.value.length > 2 * 1024 * 1024) { gut.classList.add("hidden"); return; }
     const lines = ta.value.split("\n");
     if (lines.length > GUT_MAX) { gut.classList.add("hidden"); return; }
     gut.classList.remove("hidden");
@@ -682,9 +710,8 @@
     vwDropEd();
     VW.mode = mode;
     if (mode === "edit" && isMd(VW.path) && !VW.plainMd) { vwRenderActs(); return vwMdEditor(); }
-    if (mode === "md") {
-      $("vw-body").innerHTML = `<div class="vw-md bubble">${renderMd(VW.text, mdImgSrc)}</div>`;
-    } else {
+    if (mode === "md") vwMdPreview(VW.text);
+    else {
       $("vw-body").innerHTML = `<div class="vw-edwrap"><div class="vw-gut"><div class="vw-gut-in"></div></div><textarea id="vw-text" class="mono ${VW.wrap ? "" : "nowrap"}" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea></div>`;
       const ta = $("vw-text");
       ta.value = VW.text;
@@ -696,6 +723,59 @@
       });
     }
     vwRenderActs();
+  }
+
+  // ── Markdown 预览：长稿分段，只渲染屏幕附近的段，远了再收回去，几百万字也不卡 ──
+  const MD_LAZY_MIN = 200 * 1024, MD_CHUNK = 24 * 1024;
+  /** 按空行切段，不切开代码块、公式块，也不切在列表、缩进续行前面 */
+  function mdChunks(text) {
+    const lines = text.split("\n"), out = [];
+    let buf = [], n = 0, fence = "", math = false;
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      buf.push(l); n += l.length + 1;
+      const fm = /^\s{0,3}(`{3,}|~{3,})/.exec(l);
+      if (fm) { if (!fence) fence = fm[1][0]; else if (fm[1][0] === fence) fence = ""; continue; }
+      if (fence) continue;
+      const t = l.trim();
+      if (math) { if (t.endsWith("$$") || t.endsWith("\\]")) math = false; }
+      else if ((t.startsWith("$$") && !(t.length > 2 && t.slice(2).endsWith("$$"))) || (t.startsWith("\\[") && !t.endsWith("\\]"))) math = true;
+      if (math || n < MD_CHUNK || l.trim()) continue;
+      const nx = lines[i + 1];
+      if (nx == null || /^(\s|[-*+]\s|\d+[.)]\s|>)/.test(nx)) continue;
+      out.push(buf.join("\n")); buf = []; n = 0;
+    }
+    if (buf.length) out.push(buf.join("\n"));
+    return out;
+  }
+  let mdObs = null;
+  function vwMdPreview(text) {
+    if (mdObs) { mdObs.disconnect(); mdObs = null; }
+    const body = $("vw-body");
+    if (text.length < MD_LAZY_MIN) {
+      body.innerHTML = `<div class="vw-md bubble">${renderMd(text, mdImgSrc)}</div>`; enhanceMd(body);
+      return;
+    }
+    const parts = mdChunks(text);
+    // 没渲染的段先按字数估个高度占位，滚动条长度大致对；渲染过一次就记住真实高度
+    const cpl = Math.max(16, Math.floor((Math.min(body.clientWidth || 360, 760) - 32) / 16));
+    const est = (c) => { let h = 0; for (const l of c.split("\n")) h += l ? Math.ceil(l.length / cpl) * 27 + 10 : 6; return h; };
+    body.innerHTML = `<div class="vw-md bubble">${parts.map((c, i) => `<div class="vw-chunk" data-i="${i}" style="min-height:${est(c)}px"></div>`).join("")}</div>`;
+    const box = body.firstElementChild;
+    mdObs = new IntersectionObserver((ents) => {
+      for (const e of ents) {
+        const el = e.target, on = el.dataset.on === "1";
+        if (e.isIntersecting && !on) {
+          el.innerHTML = renderMd(parts[+el.dataset.i], mdImgSrc);
+          el.style.minHeight = ""; el.dataset.on = "1";
+          enhanceMd(el);
+        } else if (!e.isIntersecting && on) {
+          el.style.minHeight = el.offsetHeight + "px";
+          el.innerHTML = ""; el.dataset.on = "";
+        }
+      }
+    }, { root: box, rootMargin: "1500px 0px" });
+    for (const el of box.children) mdObs.observe(el);
   }
 
   // ── Markdown 编辑器（CodeMirror 6，按需加载，见 claude-apk/mdedit/） ──

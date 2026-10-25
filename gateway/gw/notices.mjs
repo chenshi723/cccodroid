@@ -9,14 +9,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { CFG, PREFIX, log } from "./config.mjs";
+import { CFG, LIVE, PREFIX, log } from "./config.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { privCall } from "./usage.mjs";
 
 const SOURCES = (process.env.CCAPP_NOTICES_URL ? [process.env.CCAPP_NOTICES_URL] : [])
   .concat(["https://cccodroid.net/notices.json", "https://raw.githubusercontent.com/greyoak111/cccodroid/main/notices/notices.json"]);
-// 与组件索引同一把公钥（gw/components.mjs）
-const PUBKEY = crypto.createPublicKey(
+// 与组件索引同一把公钥（gw/components.mjs）；Claude Code 验证记录（gw/ccverified.mjs）也用它。测试（CCAPP_TEST=1）时可换成测试钥匙
+export const PUBKEY = crypto.createPublicKey(!LIVE && process.env.CCAPP_TEST_PUBKEY ? process.env.CCAPP_TEST_PUBKEY :
   "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA4u1V3UuRVZgXwqXXQaQIBaefPf2PCGqKqvsna9Pgzzs=\n-----END PUBLIC KEY-----\n");
 const EVERY = 3 * 3600e3;
 const CACHE = path.join(CFG.home, ".cache", "cccodroid", "notices.json");
@@ -86,7 +86,7 @@ function active(lang) {
 }
 
 // 后台每 3 小时取一次。界面只在打开应用 / 切回前台时来要（用的时候不打扰），那时过期了就当场取，最多等 8 秒
-setInterval(() => refreshNotices().catch(() => {}), EVERY).unref?.();
+if (LIVE) setInterval(() => refreshNotices().catch(() => {}), EVERY).unref?.();
 
 // GET /api/notices[?lang=en&all=1]：要显示的通知（all=1 连已关掉的一起，给设置页「通知」看）
 // POST /api/notices/dismiss {id}：知道了

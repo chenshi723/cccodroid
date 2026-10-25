@@ -4,7 +4,7 @@ English | [中文](CONTRIBUTING.zh-CN.md)
 
 cccodroid is maintained by one person. Android devices vary wildly, and one person can't test them all or write everything, so help is very welcome. The ways to help are listed roughly from easiest to most involved; pick whatever suits you.
 
-Feel free to say hello first in [GitHub Discussions](https://github.com/greyoak111/cccodroid/discussions) (English or Chinese), or in the QQ group 1062538743 (mostly Chinese).
+Feel free to say hello first in [GitHub Discussions](https://github.com/greyoak111/cccodroid/discussions) (English or Chinese), on [Discord](https://discord.gg/jE6KW8kwpe), or in the QQ group 1062538743 (mostly Chinese).
 
 ---
 

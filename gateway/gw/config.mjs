@@ -49,12 +49,18 @@ export function glibcEnv(env = process.env) {
   return e;
 }
 
+// ── 测试模式 ──────────────────────────────────────────────────────────
+// CCAPP_TEST=1（tests/ 里的测试设的）：模块被导入时不做任何启动动作——不恢复中断记录、不装技能、不起定时器、
+// 不写 gateway.log。网关真跑起来时这个开关是关的，一切照旧。测试同时把 CCAPP_HOME 指到临时目录，双保险
+export const LIVE = process.env.CCAPP_TEST !== "1";
+
 // ── 工具函数 ──────────────────────────────────────────────────────────
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const TS = () => new Date().toISOString().slice(11, 19);
 const LOG_FILE = process.env.CCAPP_LOG || "/sdcard/DeepSeekHarness/claude-apk/gateway.log";
 export const log = (...a) => {
   const line = `[${TS()}] ${a.join(" ")}`;
+  if (!LIVE) return;
   console.log(line);
   try { fs.appendFileSync(LOG_FILE, line + "\n"); } catch {}
 };

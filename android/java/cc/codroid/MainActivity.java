@@ -62,6 +62,13 @@ public class MainActivity extends Activity {
     private ScrollView logScroll;
     private ProgressBar bar;
     private TextView stat;
+    /** 平时启动（工具包已装好）：只有居中的标识和一行小字，安装页的日志藏在 setupCol 里，出错 / 要下载 / 要选东西时才展开 */
+    private View splash;
+    private Mark splashMark;
+    private TextView splashStat;
+    private LinearLayout setupCol;
+    /** 交给网页时盖在 WebView 上的标识层，页面加载完再收起（不然中间有一下空白） */
+    private View handoff;
     private WebView web;
     /** 宽屏时嵌在右侧工作区的浏览器（null = 没开）。位置、显隐全听页面的（layout.js → CCApp.paneBounds） */
     private BrowserPane pane;
@@ -75,6 +82,7 @@ public class MainActivity extends Activity {
     private LinearLayout chooser, chooserFoot;
     private ScrollView chooserScroll;
     static final int REQ_DEVKIT = 10;
+    static final int REQ_CAMERA = 11;     // 7 网页选文件、8 保存到、9 浏览器窗格选文件、10 首装选工具包
     /** 首装选本地文件时，boot 线程在这等系统文件选择器回来；null = 是更新卡片发起的 */
     private volatile CountDownLatch pickWait;
     private volatile Uri picked;
@@ -88,7 +96,7 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 31) getSplashScreen().setOnExitAnimationListener(v -> v.remove());
         syncSplash();
         env = new Env(this);
-        buildSetupUi();
+        buildSetupUi(env.devkitReady() && !secondaryUser(this));
         edgeToEdge();
         pending = getIntent();
         java.util.List<String> want = new java.util.ArrayList<>();
@@ -156,6 +164,8 @@ public class MainActivity extends Activity {
                     installFirstDevkit(ins);
                     say(Tr.t("✓ 开发工具包就绪"));
                     Ledger.add(env, "install", true, Tr.t("首次安装开发工具包"), null);
+                    // 旧版在首装期间可能已经按「全部模块」下好了一份同版本的更新：装好以后它就是多余的，别在下面被当成更新装上
+                    Updater.get(this).dropStagedIfInstalled();
                 }
                 deployAssets();
                 if (!env.claudeReady() && !env.claudeOff()) {      // 用户自己卸的不装回，等他在设置里选版本
@@ -317,6 +327,10 @@ public class MainActivity extends Activity {
     private static String caught(String entry) { return "catch(e){window.__ccErr&&__ccErr(" + org.json.JSONObject.quote(entry) + ",e)}"; }
     private static String guarded(String entry, String code) { return "try{" + code + "}" + caught(entry); }
     /** 页面可能还在启动：等 __cc 就绪再派发（app.js 里有对应的监听） */
+    private static boolean copyQuiet(File a, File b) {
+        try { java.nio.file.Files.copy(a.toPath(), b.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING); a.delete(); return true; }
+        catch (Exception e) { return false; }
+    }
     private void toPage(String event, String value) {
         ui.post(() -> {
             if (web == null) return;
@@ -442,6 +456,7 @@ public class MainActivity extends Activity {
 
     /** 选项和日志区二选一占剩余高度；选完回到日志 */
     private void showChooser(boolean on) {
+        if (on) expandSetup();
         chooser.setVisibility(on ? View.VISIBLE : View.GONE);
         chooserScroll.setVisibility(on ? View.VISIBLE : View.GONE);
         chooserFoot.setVisibility(on && chooserFoot.getChildCount() > 0 ? View.VISIBLE : View.GONE);
@@ -865,21 +880,30 @@ public class MainActivity extends Activity {
     }
 
     // ── 界面 ───────────────────────────────────────────────────────────
-    private void buildSetupUi() {
+    private void buildSetupUi() { buildSetupUi(false); }
+    /** quick = 平时启动：先只露出居中的标识，安装页整套控件照样建好、藏着，需要时 expandSetup() 换上来 */
+    private void buildSetupUi(boolean quick) {
         boolean dark = uiDark();
         int accent = BrowserPane.pal(this, dark, "accent");
         root = new FrameLayout(this);
         root.setBackgroundColor(BrowserPane.pal(this, dark, "bg"));
         LinearLayout col = new LinearLayout(this);
+        setupCol = col;
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(dp(20), dp(40), dp(20), dp(20));
+        // 标题行：标识（一直在扫，表示还在忙）+ cccodroid
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        head.setPadding(0, 0, 0, dp(12));
+        head.addView(new Mark(this, BrowserPane.pal(this, dark, "fg"), Mark.dotColor(this, dark)), new LinearLayout.LayoutParams(dp(34), dp(34)));
         TextView title = new TextView(this);
         title.setText("cccodroid");
-        title.setTextSize(26);
+        title.setTextSize(24);
         title.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
-        title.setPadding(0, 0, 0, dp(10));
-        title.setTextColor(accent);
-        col.addView(title);
+        title.setPadding(dp(12), 0, 0, 0);
+        title.setTextColor(BrowserPane.pal(this, dark, "fg"));
+        head.addView(title);
+        col.addView(head);
         bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         bar.setIndeterminate(true);
         bar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
@@ -936,13 +960,41 @@ public class MainActivity extends Activity {
         acts.addView(stuck, new LinearLayout.LayoutParams(-2, -2));
         col.addView(acts, new LinearLayout.LayoutParams(-1, -2));
         root.addView(col);
+        splash = null; splashMark = null; splashStat = null;
+        if (quick) {
+            col.setVisibility(View.GONE);
+            LinearLayout sp = new LinearLayout(this);
+            sp.setOrientation(LinearLayout.VERTICAL);
+            sp.setGravity(android.view.Gravity.CENTER);
+            splashMark = new Mark(this, BrowserPane.pal(this, dark, "fg"), Mark.dotColor(this, dark));
+            sp.addView(splashMark, new LinearLayout.LayoutParams(dp(88), dp(88)));
+            splashStat = new TextView(this);
+            splashStat.setTextColor(BrowserPane.pal(this, dark, "hint"));
+            splashStat.setTextSize(12.5f);
+            splashStat.setGravity(android.view.Gravity.CENTER);
+            splashStat.setSingleLine(true);
+            splashStat.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            splashStat.setPadding(dp(24), dp(22), dp(24), 0);
+            sp.addView(splashStat, new LinearLayout.LayoutParams(-1, -2));
+            splash = sp;
+            root.addView(sp, new FrameLayout.LayoutParams(-1, -1));
+        }
         setContentView(root);
         applyBars(dark);
+    }
+
+    /** 平时启动途中碰上要看细节的事（出错、要下载、要选来源）：收起居中标识，换回完整的安装页 */
+    private void expandSetup() {
+        if (splash == null || splash.getVisibility() != View.VISIBLE) return;
+        splash.setVisibility(View.GONE);
+        setupCol.setVisibility(View.VISIBLE);
     }
 
     private void say(String m) {
         android.util.Log.i("cccodroid-setup", m);      // 安装 / 更新出问题时，logcat 里能看到走到了哪一步
         ui.post(() -> {
+            if (splashStat != null) splashStat.setText(m);
+            if (m.startsWith("✗")) expandSetup();
             log.append(m + "\n");
             if (log.getLineCount() > 400) log.setText(log.getText().subSequence(log.getText().length() / 2, log.getText().length()));
             logScroll.post(() -> logScroll.fullScroll(View.FOCUS_DOWN));
@@ -971,12 +1023,26 @@ public class MainActivity extends Activity {
         }
         final String line = txt;
         ui.post(() -> {
+            expandSetup();
             if (t <= 0) bar.setIndeterminate(true);
             else { bar.setIndeterminate(false); bar.setProgress((int) (d * 100 / t)); }
             stat.setText(line);
         });
     }
     private static String mb(long b) { return String.format(java.util.Locale.ROOT, b >= 100 << 20 ? "%.0f MB" : "%.1f MB", b / 1048576.0); }
+
+    private Mark handoffMark;
+    /** 网关页面落地后收起标识层：标识收缩淡出，底色同时淡掉 */
+    private void dropHandoff() {
+        final View ho = handoff;
+        if (ho == null) return;
+        handoff = null;
+        if (handoffMark != null) handoffMark.finish(null);
+        handoffMark = null;
+        ho.animate().alpha(0).setStartDelay(120).setDuration(260).withEndAction(() -> {
+            if (ho.getParent() instanceof android.view.ViewGroup) ((android.view.ViewGroup) ho.getParent()).removeView(ho);
+        }).start();
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     private void showWeb() {
@@ -999,6 +1065,10 @@ public class MainActivity extends Activity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
+        // 界面全走本机网关（http），用不着 file://；预览里跑的是不可信网页，显式关掉（targetSdk 28 默认是开的）
+        s.setAllowFileAccess(false);
+        s.setAllowFileAccessFromFileURLs(false);
+        s.setAllowUniversalAccessFromFileURLs(false);
         web.setBackgroundColor(BrowserPane.pal(this, uiDark(), "bg"));
         // 本机网关之外的地址一律交给系统浏览器：登录授权页、"去官网创建 Key" 之类。
         // 在 WebView 里打开登录页会被 Google 等拒绝，而且 OAuth 回调要回到浏览器才能跳 localhost。
@@ -1021,38 +1091,41 @@ public class MainActivity extends Activity {
                 // 网关页面落地就清历史：脱困跳转、看门狗重载留下的条目都没有回去的意义
                 if (url != null && url.startsWith("http://127.0.0.1:")) v.clearHistory();
                 pushInsets();
+                if (handoff != null && url != null && url.startsWith("http://127.0.0.1:")) ui.postDelayed(MainActivity.this::dropHandoff, 180);
             }
         });
         web.addJavascriptInterface(new Object() {
-            @android.webkit.JavascriptInterface public void openUrl(String url) {
+            // 有副作用的方法第一个参数是口令 k（见 Env.BRIDGE_KEY）；界面在 theme.js 里包一层自动带上，调用处照旧写
+            @android.webkit.JavascriptInterface public boolean keyed() { return true; }
+            @android.webkit.JavascriptInterface public void openUrl(String k, String url) { if (!Env.bridgeOk(k)) return;
                 if (url != null && (url.startsWith("https://") || url.startsWith("http://"))) ui.post(() -> openExternal(url));
             }
             // ── 嵌入式浏览器窗格（宽屏）：页面决定开不开、摆在哪；关掉（✕）回调 __ccBrowserClosed ──
             @android.webkit.JavascriptInterface public boolean hasPane() { return true; }
-            @android.webkit.JavascriptInterface public void paneOpen(String url) {
+            @android.webkit.JavascriptInterface public void paneOpen(String k, String url) { if (!Env.bridgeOk(k)) return;
                 if (url != null && !url.isEmpty() && !url.startsWith("https://") && !url.startsWith("http://")) return;
                 if (isGatewayUrl(url)) return;
                 ui.post(() -> openPane(url));
             }
             /** 页面坐标（CSS px，相对对话 WebView 左上角）；w <= 0 = 先藏起来（被别的窗格 / 浮层盖住时） */
-            @android.webkit.JavascriptInterface public void paneBounds(float x, float y, float w, float h) {
+            @android.webkit.JavascriptInterface public void paneBounds(String k, float x, float y, float w, float h) { if (!Env.bridgeOk(k)) return;
                 ui.post(() -> placePane(x, y, w, h));
             }
             @android.webkit.JavascriptInterface public boolean paneCanBack() { return paneCanBack; }
-            @android.webkit.JavascriptInterface public void paneGoBack() { ui.post(() -> { if (pane != null) pane.back(); }); }
-            @android.webkit.JavascriptInterface public void paneClose() { ui.post(() -> closePane(false)); }
+            @android.webkit.JavascriptInterface public void paneGoBack(String k) { if (!Env.bridgeOk(k)) return; ui.post(() -> { if (pane != null) pane.back(); }); }
+            @android.webkit.JavascriptInterface public void paneClose(String k) { if (!Env.bridgeOk(k)) return; ui.post(() -> closePane(false)); }
             /** 应用内浏览器（回复里的网页链接、本机开发服务）；url 为空 = 回到上次那页 */
-            @android.webkit.JavascriptInterface public void openBrowser(String url) {
+            @android.webkit.JavascriptInterface public void openBrowser(String k, String url) { if (!Env.bridgeOk(k)) return;
                 if (isGatewayUrl(url)) return;
                 if (url == null || url.isEmpty() || url.startsWith("https://") || url.startsWith("http://"))
                     ui.post(() -> BrowserActivity.open(MainActivity.this, url));
             }
             /** 回复底下的「转发」：把正文交给系统分享面板 */
-            @android.webkit.JavascriptInterface public void shareText(String text) {
+            @android.webkit.JavascriptInterface public void shareText(String k, String text) { if (!Env.bridgeOk(k)) return;
                 if (text != null && !text.isEmpty()) ui.post(() -> shareTextNow(text));
             }
             /** 复制到剪贴板：WebView 里 navigator.clipboard.writeText 常被拒（NotAllowedError，页面没焦点或权限策略），走系统剪贴板稳 */
-            @android.webkit.JavascriptInterface public boolean copyText(String text) {
+            @android.webkit.JavascriptInterface public boolean copyText(String k, String text) { if (!Env.bridgeOk(k)) return false;
                 if (text == null) return false;
                 try {
                     android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
@@ -1062,28 +1135,28 @@ public class MainActivity extends Activity {
             }
             /** 冻结脱困：WebView 偶发把这个文档的触摸滚动整个吞掉，同站重载不好，跨站跳一次再回来才好。见 bounce() */
             /** 更新卡片的「从本地文件安装」：弹系统文件选择器，选好后由 applyLocalDevkitUi 接手 */
-            @android.webkit.JavascriptInterface public void pickDevkit() {
+            @android.webkit.JavascriptInterface public void pickDevkit(String k) { if (!Env.bridgeOk(k)) return;
                 ui.post(() -> { pickWait = null; try { startActivityForResult(devkitPickIntent(), REQ_DEVKIT); } catch (Exception ignored) {} });
             }
             /** 设置页「卸载」：devkit / claude。确认框在页面里弹过了 */
-            @android.webkit.JavascriptInterface public void uninstall(String item) {
+            @android.webkit.JavascriptInterface public void uninstall(String k, String item) { if (!Env.bridgeOk(k)) return;
                 if ("devkit".equals(item) || "claude".equals(item)) uninstallUi(item);
             }
-            @android.webkit.JavascriptInterface public void unfreeze() { ui.post(() -> bounce()); }
+            @android.webkit.JavascriptInterface public void unfreeze(String k) { if (!Env.bridgeOk(k)) return; ui.post(() -> bounce()); }
             /** 更新说明（见 WhatsNew）：页面启动时来取，显示出来后调 whatsNewSeen */
             @android.webkit.JavascriptInterface public String whatsNew(String lang) { return WhatsNew.pending(MainActivity.this, lang); }
-            @android.webkit.JavascriptInterface public void whatsNewSeen() { WhatsNew.seen(MainActivity.this); }
+            @android.webkit.JavascriptInterface public void whatsNewSeen(String k) { if (!Env.bridgeOk(k)) return; WhatsNew.seen(MainActivity.this); }
             @android.webkit.JavascriptInterface public boolean nightMode() { return systemNight(); }
-            @android.webkit.JavascriptInterface public void setBars(boolean dark) { ui.post(() -> applyBars(dark)); }
+            @android.webkit.JavascriptInterface public void setBars(String k, boolean dark) { if (!Env.bridgeOk(k)) return; ui.post(() -> applyBars(dark)); }
             /** 界面里的风格（native / qiusuo / zhuyue）：状态栏、安装页、对话框、内置浏览器的颜色按它取。theme.js 在 setBars 之前调 */
-            @android.webkit.JavascriptInterface public void skinPref(String s) {
+            @android.webkit.JavascriptInterface public void skinPref(String k, String s) { if (!Env.bridgeOk(k)) return;
                 if ("native".equals(s) || "qiusuo".equals(s) || "zhuyue".equals(s))
                     getSharedPreferences("ui", MODE_PRIVATE).edit().putString("skin", s).commit();
             }
             /** 界面里的外观设置（auto / light / dark），下次启动时安装页照着上色 */
             /** 界面最终用的语言（i18n.js 解析过的 code，不是 auto）：外壳的通知、安装页、更新文案跟着换 */
-            @android.webkit.JavascriptInterface public void langPref(String code) { Tr.set(code); }
-            @android.webkit.JavascriptInterface public void themePref(String p) {
+            @android.webkit.JavascriptInterface public void langPref(String k, String code) { if (!Env.bridgeOk(k)) return; Tr.set(code); }
+            @android.webkit.JavascriptInterface public void themePref(String k, String p) { if (!Env.bridgeOk(k)) return;
                 if ("auto".equals(p) || "light".equals(p) || "dark".equals(p))
                     getSharedPreferences("ui", MODE_PRIVATE).edit().putString("theme", p).commit();
                 ui.post(MainActivity.this::syncSplash);
@@ -1092,7 +1165,7 @@ public class MainActivity extends Activity {
             }
             /** 「保存到」：弹系统文件面板（ACTION_CREATE_DOCUMENT），用户挑好位置后把文件复制过去。
              *  不需要存储权限，也不会落进用户打不开的私有目录。结果回调页面的 __ccSaved(ok, 说明) */
-            @android.webkit.JavascriptInterface public void saveAs(String path, String name, String mime) {
+            @android.webkit.JavascriptInterface public void saveAs(String k, String path, String name, String mime) { if (!Env.bridgeOk(k)) return;
                 ui.post(() -> startSaveAs(path, name, mime));
             }
         }, "CCApp");
@@ -1106,6 +1179,19 @@ public class MainActivity extends Activity {
             @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p) {
                 if (fileCb != null) fileCb.onReceiveValue(null);
                 fileCb = cb;
+                // ＋ 面板「拍照」：<input capture> 直接开系统相机，不弹文件选择器
+                if (p.isCaptureEnabled() && java.util.Arrays.asList(p.getAcceptTypes()).contains("image/*")) {
+                    try {
+                        File f = Camera.newFile(MainActivity.this);
+                        getSharedPreferences("ui", MODE_PRIVATE).edit().putString("camPending", f.getPath()).apply();
+                        startActivityForResult(Camera.intent(MainActivity.this, f), REQ_CAMERA);
+                        return true;
+                    } catch (Exception e) {
+                        fileCb = null;
+                        android.widget.Toast.makeText(MainActivity.this, Tr.f("打不开相机：{0}", e.getMessage()), android.widget.Toast.LENGTH_LONG).show();
+                        return false;
+                    }
+                }
                 try { startActivityForResult(chooserIntent(p), 7); } catch (Exception e) { fileCb = null; return false; }
                 return true;
             }
@@ -1122,8 +1208,27 @@ public class MainActivity extends Activity {
             }
         });
         web.loadUrl(Env.uiUrl());
+        // 平时启动沿用正在扫的那个标识（不重播进场）；从安装页过来就新起一个居中的
+        boolean dark = uiDark();
+        View keep = splash != null && splash.getVisibility() == View.VISIBLE ? splash : null;
+        Mark hm = keep != null ? splashMark : null;
         root.removeAllViews();
         root.addView(web);
+        FrameLayout ho = new FrameLayout(this);
+        ho.setBackgroundColor(BrowserPane.pal(this, dark, "bg"));
+        ho.setClickable(true);              // 收起前别让点击漏到底下还没画好的页面
+        if (keep != null) {
+            if (splashStat != null) splashStat.setText("");
+            ho.addView(keep, new FrameLayout.LayoutParams(-1, -1));
+        } else {
+            hm = new Mark(this, BrowserPane.pal(this, dark, "fg"), Mark.dotColor(this, dark));
+            ho.addView(hm, new FrameLayout.LayoutParams(dp(88), dp(88), android.view.Gravity.CENTER));
+        }
+        handoffMark = hm;
+        handoff = ho;
+        root.addView(ho, new FrameLayout.LayoutParams(-1, -1));
+        splash = null; splashMark = null; splashStat = null;
+        ui.postDelayed(this::dropHandoff, 6000);   // 页面迟迟不落地也别一直挡着
         root.requestApplyInsets();            // 顶部留白交给页面（--safe-t）
         // 首次启动：安装界面的原生控件刚被整个拿掉，紧接着还可能弹「开启通知」对话框。WebView 没拿到焦点时，
         // 点输入框键盘起不来 / 字打不进去，只有脱困（整页重载）才好。这里主动要焦点，窗口回到前台时再补一次（onWindowFocusChanged）
@@ -1368,6 +1473,36 @@ public class MainActivity extends Activity {
             else { savePending = null; savedJs(false, "cancel"); }
             return;
         }
+        if (req == REQ_CAMERA) {
+            // 拍照回来。界面可能在拍的时候被系统收掉重建过：fileCb 没了，就照「分享进来的文件」那样放进 uploads 再递给页面
+            SharedPreferences sp = getSharedPreferences("ui", MODE_PRIVATE);
+            String path = sp.getString("camPending", null);
+            sp.edit().remove("camPending").apply();
+            ValueCallback<Uri[]> cb = fileCb;
+            fileCb = null;
+            File f = path == null ? null : new File(path);
+            if (res != RESULT_OK || f == null) { if (f != null) f.delete(); if (cb != null) cb.onReceiveValue(null); return; }
+            new Thread(() -> {
+                boolean ok = Camera.shrink(f);
+                ui.post(() -> {
+                    if (!ok) {
+                        f.delete();
+                        if (cb != null) cb.onReceiveValue(null);
+                        android.widget.Toast.makeText(this, Tr.t("没拿到照片"), android.widget.Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    if (cb != null) {
+                        try { cb.onReceiveValue(new Uri[]{Share.uriFor(this, f)}); } catch (Exception e) { cb.onReceiveValue(null); }
+                        return;
+                    }
+                    File dir = new File(env.workspace(), "uploads");
+                    dir.mkdirs();
+                    File out = new File(dir, new java.text.SimpleDateFormat("yyyyMMddHHmmss", java.util.Locale.US).format(new java.util.Date()) + "-" + f.getName());
+                    if (f.renameTo(out) || copyQuiet(f, out)) toPage("ccapp-attach", out.getPath());
+                });
+            }).start();
+            return;
+        }
         if (req == 7 && fileCb != null) {
             fileCb.onReceiveValue(chooserResult(res, data));
             fileCb = null;
@@ -1376,6 +1511,29 @@ public class MainActivity extends Activity {
 
     /** 系统给的 createIntent() 不管网页要不要多选，一律只能选一个：<input multiple> 时补上 EXTRA_ALLOW_MULTIPLE */
     /** 网关自己的地址不许进浏览器 / 窗格：它们和界面共用 Cookie，预览页里的脚本能借这个桥拿到网关权限 */
+    /** 浏览器认作回环 / 0.0.0.0 的 IPv4 写法：127.0.0.1、127.1、2130706433、0x7f000001、0177.0.0.1……（按 inet_aton 的规矩解析） */
+    static boolean loopbackV4(String h) {
+        if (!h.matches("[0-9a-fx.]+")) return false;
+        String[] p = h.split("\\.", -1);
+        if (p.length < 1 || p.length > 4) return false;
+        long[] v = new long[p.length];
+        try {
+            for (int i = 0; i < p.length; i++) {
+                String x = p[i];
+                if (x.isEmpty()) return false;
+                if (x.startsWith("0x")) v[i] = x.length() == 2 ? 0 : Long.parseLong(x.substring(2), 16);
+                else if (x.length() > 1 && x.startsWith("0")) v[i] = Long.parseLong(x.substring(1), 8);
+                else v[i] = Long.parseLong(x);
+            }
+        } catch (NumberFormatException e) { return false; }
+        long ip = 0;
+        for (int i = 0; i < p.length - 1; i++) { if (v[i] > 255) return false; ip |= v[i] << (24 - 8 * i); }
+        long last = v[p.length - 1];
+        if (last >= (1L << (8 * (5 - p.length)))) return false;
+        ip |= last;
+        return (ip >>> 24) == 127 || ip == 0;
+    }
+
     static boolean isGatewayUrl(String url) {
         if (url == null || url.isEmpty()) return false;
         try {
@@ -1383,7 +1541,8 @@ public class MainActivity extends Activity {
             String h = u.getHost();
             if (h == null) return false;
             h = h.toLowerCase(java.util.Locale.ROOT);
-            boolean local = h.equals("127.0.0.1") || h.equals("localhost") || h.equals("[::1]") || h.equals("::1") || h.equals("0.0.0.0");
+            boolean local = h.equals("localhost") || h.endsWith(".localhost") || h.equals("[::1]") || h.equals("::1")
+                || h.equals("[::]") || h.equals("::") || h.startsWith("[::ffff:") || loopbackV4(h);
             return local && u.getPort() == Env.PORT;
         } catch (Exception e) { return true; }
     }

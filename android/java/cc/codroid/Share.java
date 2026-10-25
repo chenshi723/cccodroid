@@ -46,6 +46,7 @@ public final class Share extends ContentProvider {
             case "logs": return new File(env.files, "cache/share");
             case "exports": return new File(env.home, "exports");
             case "sexports": { File s = env.shared(); return s == null ? null : new File(s, "exports"); }
+            case "camera": return Camera.dir(c);          // 拍照：系统相机往这里写（只有这个根可写）
             default: return null;
         }
     }
@@ -53,7 +54,7 @@ public final class Share extends ContentProvider {
     /** 绝对路径 → content:// 地址；不在允许的目录里就返回 null */
     static Uri uriFor(Context c, File f) throws IOException {
         String p = f.getCanonicalPath();
-        for (String r : new String[]{"logs", "exports", "sexports"}) {
+        for (String r : new String[]{"logs", "exports", "sexports", "camera"}) {
             File d = root(c, r);
             if (d == null) continue;
             String dp = d.getCanonicalPath() + "/";
@@ -72,6 +73,25 @@ public final class Share extends ContentProvider {
             if (!f.getPath().startsWith(d.getCanonicalPath() + "/") || !f.isFile()) throw new FileNotFoundException();
             return f;
         } catch (IOException e) { throw new FileNotFoundException(); }
+    }
+
+    /** 不在允许目录里的文件（工作区、/sdcard 上的）：拷一份到 exports/shared 再分享，别的应用拿到的是这一份的只读授权 */
+    static File shareable(Context c, File f) throws Exception {
+        if (!f.isFile()) throw new FileNotFoundException(Tr.t("文件不存在：") + f);
+        if (uriFor(c, f) != null) return f;
+        if (f.length() > 512L << 20) throw new IOException(Tr.t("文件超过 512 MB，不分享"));
+        File dir = new File(new Env(c).home, "exports/shared");
+        dir.mkdirs();
+        File dst = new File(dir, f.getName());
+        java.nio.file.Files.copy(f.toPath(), dst.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        return dst;
+    }
+
+    /** 按扩展名猜类型；猜不出就当二进制 */
+    static String mimeOf(File f) {
+        String ext = android.webkit.MimeTypeMap.getFileExtensionFromUrl(Uri.encode(f.getName()));
+        String m = ext == null || ext.isEmpty() ? null : android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext.toLowerCase());
+        return m == null ? "application/octet-stream" : m;
     }
 
     /** 弹系统分享面板 */
@@ -196,8 +216,11 @@ public final class Share extends ContentProvider {
     @Override public boolean onCreate() { return true; }
 
     @Override public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
-        if (!"r".equals(mode)) throw new FileNotFoundException("只读");
-        return ParcelFileDescriptor.open(fileFor(uri), ParcelFileDescriptor.MODE_READ_ONLY);
+        if ("r".equals(mode)) return ParcelFileDescriptor.open(fileFor(uri), ParcelFileDescriptor.MODE_READ_ONLY);
+        // 只有拍照目录可写：相机按 EXTRA_OUTPUT 写进我们事先建好的空文件
+        if (uri.getPathSegments().size() == 2 && "camera".equals(uri.getPathSegments().get(0)))
+            return ParcelFileDescriptor.open(fileFor(uri), ParcelFileDescriptor.parseMode(mode));
+        throw new FileNotFoundException("只读");
     }
 
     @Override public Cursor query(Uri uri, String[] proj, String sel, String[] args, String sort) {
@@ -214,7 +237,10 @@ public final class Share extends ContentProvider {
         return c;
     }
 
-    @Override public String getType(Uri uri) { return uri.getPath() != null && uri.getPath().endsWith(".zip") ? "application/zip" : "application/octet-stream"; }
+    @Override public String getType(Uri uri) {
+        String p = uri.getPath();
+        return p != null && p.endsWith(".zip") ? "application/zip" : p != null && p.endsWith(".jpg") ? "image/jpeg" : "application/octet-stream";
+    }
     @Override public Uri insert(Uri uri, ContentValues v) { throw new UnsupportedOperationException(); }
     @Override public int delete(Uri uri, String s, String[] a) { throw new UnsupportedOperationException(); }
     @Override public int update(Uri uri, ContentValues v, String s, String[] a) { throw new UnsupportedOperationException(); }

@@ -6,6 +6,7 @@ import { CFG, GLIBC_PRELOAD, NO_BRIDGE, PATHS, PREFIX, glibcEnv, log, sleep } fr
 import { SETTINGS } from "./settings.mjs";
 import { PROVIDER, keyOf } from "./providers.mjs";
 import { cachedModels } from "./models.mjs";
+import { fixedBaseUrl } from "./streamfix.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 
 // ── 给 claude 造一个它认得的 shell ────────────────────────────────────
@@ -207,6 +208,10 @@ export function claudeEnv(o = {}) {
   };
 
   for (const k of ["LD_LIBRARY_PATH", "ANTHROPIC_BASE_URL"]) if (!env[k]) delete env[k];
+  // 自定义接口（中转站）垫一层流式补尾：回答说完了上游却没收尾，claude 会整段撤回重答（见 streamfix.mjs）
+  // 用户给 claude 配了代理就不垫：本地转发是 node 发的请求，不走那个代理
+  const viaProxy = ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"].some((k) => env[k]);
+  if (p.custom && !p.login && !p.local && !viaProxy && env.ANTHROPIC_BASE_URL) env.ANTHROPIC_BASE_URL = fixedBaseUrl(env.ANTHROPIC_BASE_URL);
 
   // 认证：按厂商声明的风格选变量，别把 key 塞进对方不认的 header。
   //   bearer    → ANTHROPIC_AUTH_TOKEN（Authorization: Bearer …）

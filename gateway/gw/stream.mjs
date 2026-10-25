@@ -116,6 +116,12 @@ export function translate(ev, { sse, onInit, onResult, onReplay, flags, provider
       const e = ev.event;
       // 每次 API 调用开头都有 message_start，它的 usage 就是【当时】的上下文占用。
       // 取最后一次 = 当前真实占用。这条同时也是「按钮刚按下就更新」的来源。
+      // 流在中途断了（厂商掐线、网络抖），claude 会自己补一句「接着说」再请求一次。断掉那次已逐字推出去、
+      // 但没等到 assistant 事件的半截正文 / 思考不会进对话记录 —— 界面上也得删掉，否则两遍回答拼在一个气泡里（群友截图）
+      if (e?.type === "message_start" && flags && !ev.parent_tool_use_id && (flags.pendText || flags.pendThink)) {
+        sse({ type: "discard_partial", text: flags.pendText || 0, think: flags.pendThink || 0 });
+        flags.pendText = 0; flags.pendThink = 0;
+      }
       if (e?.type === "message_start" && e.message?.usage) {
         const n = promptTokens(e.message.usage);
         if (flags) flags.contextTokens = n;
@@ -148,10 +154,10 @@ export function translate(ev, { sse, onInit, onResult, onReplay, flags, provider
         } else if (e?.type === "content_block_stop" && flags.toolTimer) { clearTimeout(flags.toolTimer); flags.toolTimer = null; }
       }
       if (e?.type === "content_block_delta" && e.delta?.type === "text_delta" && e.delta.text) {
-        if (flags) flags.gotDelta = true;
+        if (flags) { flags.gotDelta = true; if (!ev.parent_tool_use_id) flags.pendText = (flags.pendText || 0) + e.delta.text.length; }
         sse({ type: "delta", text: e.delta.text });
       } else if (e?.type === "content_block_delta" && e.delta?.type === "thinking_delta" && e.delta.thinking) {
-        if (flags) flags.gotThinkDelta = true;
+        if (flags) { flags.gotThinkDelta = true; if (!ev.parent_tool_use_id) flags.pendThink = (flags.pendThink || 0) + e.delta.thinking.length; }
         sse({ type: "thinking_delta", text: e.delta.thinking });
       }
       break;
@@ -169,6 +175,8 @@ export function translate(ev, { sse, onInit, onResult, onReplay, flags, provider
       }
       // 逐字增量已发过就别重复整段文本
       const content = ev.message?.content || [];
+      // 这一块已确认进了对话：逐字推过的不再算「半截」
+      if (flags) for (const c of content) { if (c.type === "text") flags.pendText = 0; else if (c.type === "thinking" || c.type === "redacted_thinking") flags.pendThink = 0; }
       for (const c of content) {
         // 本地命令（/context /cost /compact …）的正文 claude 会发两遍：一条合成的 assistant 消息 + result。
         // 界面拿 result 画命令卡片，这里再发就重复了（以前 /context 显示两次）

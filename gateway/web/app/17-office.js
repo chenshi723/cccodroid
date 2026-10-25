@@ -20,7 +20,7 @@
   function vwFail(msg, withPdf) {
     $("vw-body").innerHTML = `<div class="vw-empty"><div>${esc(msg)}</div>
       ${withPdf ? `<button class="btn ghost sm" data-a="aspdf">${t("用 LibreOffice 转成 PDF 看")}</button>` : ""}
-      <a class="btn ghost sm" href="${fileUrl(VW.path, true)}" download>${t("下载")}</a></div>`;
+      <button class="btn ghost sm" data-a="share">${shareIco()}${t("分享")}</button></div>`;
     $("vw-body").querySelector('[data-a="aspdf"]')?.addEventListener("click", () => vwOffice());
   }
 
@@ -185,7 +185,7 @@
     $("vw-body").innerHTML = `<div class="vw-empty">
       <div>${t("看这类文件要先装 LibreOffice（下载约 190 MB，装好约 830 MB）。装一次，以后 PPT、Word、Excel 都能直接看。")}</div>
       <button class="btn sm" data-a="lo-install">${t("安装 LibreOffice")}</button>
-      <a class="btn ghost sm" href="${fileUrl(VW.path, true)}" download>${t("下载")}</a></div>`;
+      <button class="btn ghost sm" data-a="share">${shareIco()}${t("分享")}</button></div>`;
     $("vw-body").querySelector('[data-a="lo-install"]').addEventListener("click", vwOfficeInstall);
     api("/api/office/info").then((j) => { if (j.install && j.install.running) vwOfficeInstall(); }).catch(() => {});
   }
@@ -212,8 +212,9 @@
   let pdfjsP = null;
   function loadPdfjs() {
     if (!pdfjsP) {
-      pdfjsP = import("/pdfjs/pdf.min.mjs").then((m) => {
-        m.GlobalWorkerOptions.workerSrc = "/pdfjs/pdf.worker.min.mjs";
+      // 旧 WebView（如 Chrome 104）缺 Promise.withResolvers 等，先补上；worker 走同样先补的入口
+      pdfjsP = import("/pdfjs/compat.mjs").then(() => import("/pdfjs/pdf.min.mjs")).then((m) => {
+        m.GlobalWorkerOptions.workerSrc = "/pdfjs/pdf.worker.compat.mjs";
         return m;
       }).catch((e) => { pdfjsP = null; throw e; });
     }
@@ -240,7 +241,7 @@
       $("vw-body").innerHTML = `<div class="vw-empty">${t("PDF 打不开：{msg}", { msg: esc(e.message || String(e)) })}</div>`;
       return;
     }
-    if (!vwStill(p0) || VW.pdf) { doc.destroy(); return; }
+    if (!vwStill(p0) || VW.pdf) { doc.loadingTask.destroy(); return; }
     VW.pdf = doc;
     const p1 = await doc.getPage(1);
     const vp = p1.getViewport({ scale: 1 });
@@ -303,7 +304,7 @@
       const c = document.createElement("canvas");
       c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
       h.replaceChildren(c);
-      h._task = page.render({ canvasContext: c.getContext("2d"), viewport: vp });
+      h._task = page.render({ canvas: c, canvasContext: c.getContext("2d"), viewport: vp });
       await h._task.promise;
       if (VW.pdf !== doc) return;
       h.dataset.state = "done";
@@ -331,7 +332,7 @@
 
   function closeViewerPdf() {
     VW.pdfObs?.disconnect(); VW.pdfObs = null;
-    if (VW.pdf) { try { VW.pdf.destroy(); } catch {} VW.pdf = null; }
+    if (VW.pdf) { try { VW.pdf.loadingTask.destroy(); } catch {} VW.pdf = null; }
   }
 
   function closeViewer() {

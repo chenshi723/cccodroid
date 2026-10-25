@@ -262,6 +262,9 @@
     // 有在跑的就一秒刷一次；抽屉关了 / 换了页签就停
     if ((r.items || []).some((c) => c.progress) && pageOn("ext"))
       compTimer = setTimeout(loadComponents, 1000);
+    // 先显示的是上回存下的列表、网关还在后台拉新索引：两秒后再要一次，拉完自然停
+    else if (r.refreshing && pageOn("ext"))
+      compTimer = setTimeout(loadComponents, 2000);
   }
 
   // ── 自定义组件：用户自己导入 Linux arm64 程序。选文件 → 网关分析（ELF 类型、缺的库）→ 勾要用的命令 → 安装（补库、写入口和技能）──

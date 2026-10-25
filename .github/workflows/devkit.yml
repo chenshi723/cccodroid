@@ -1,6 +1,6 @@
 # 开发工具包：从 Termux 官方仓库构建，发布到 Release。
 # 推 tag devkit-YYYY.MM.DD 触发；App 按 devkit-sources.txt 里钉的 tag 下载。
-# 测试版（cccodroid-test，包名 cc.codtest）：手动运行，填 target=cc.codtest、tag=testkit-YYYY.MM.DD，发成预发布。
+# 测试版（cccodroid-test，包名 cc.codtest）：在 test 分支上手动运行，填 target=cc.codtest、tag=testkit-YYYY.MM.DD，发成预发布。
 # 测试版的 tag 不能以 devkit- 开头 —— 正式版的更新检查会挑版本最高的 devkit-*，挑到别的包名的就会报"需要更新版本"。
 # 在公开 CI 上构建，任何人都能复现、核对每个包的来源（见 devkit.lock.json / SBOM.tsv）。
 name: devkit
@@ -24,12 +24,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 150
+    # 签名钥匙 INDEX_SIGNING_KEY 只存在这个 Environment 里（不放仓库级 secret）：每次跑都要维护者在 Actions 页点批准，
+    # 别的工作流引用不到它。环境的部署规则只放行 devkit-* tag 和 test 分支（测试工具包从那里手动跑）（审计 M-2b）
+    environment: devkit-release
     env:
       T: ${{ inputs.target || 'cc.codroid' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4.4.0
         with:
           node-version: '22'
 

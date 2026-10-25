@@ -11,7 +11,7 @@ cccodroid runs the **official, unmodified Claude Code** on your phone, wraps it 
 
 ## The screen
 
-The six buttons on the right of the top bar are the shortcuts you will use most:
+The right end of the top bar normally shows just ⋯. Tap it and the shortcuts you use most slide out to its left; tap it again (it is now ›) to tuck them away. The app remembers which way you left it.
 
 | Button | What it does |
 |---|---|
@@ -19,8 +19,8 @@ The six buttons on the right of the top bar are the shortcuts you will use most:
 | >_ | Terminal: the same toolchain Claude uses |
 | 🌐 | Browser: local servers and links from replies; docks on the right on a tablet |
 | ‹› | Command palette: slash commands, skills and common actions |
-| ❄ | Unfreeze: tap it when nothing scrolls |
 | ＋ | New conversation |
+| ⋯ | Show or hide the buttons above |
 
 The menu button at the top left opens the sidebar: places to go at the top (Chats, Projects, Scheduled tasks, with Extensions, Capabilities, Usage and Help under More), recent chats in the middle, and the account row at the bottom, which opens Settings.
 
@@ -30,11 +30,12 @@ The thin line under the top bar shows **context usage**; the further right, the 
 
 - **Enter sends.** Sending while Claude is busy queues the message; ⚡ interjects into the running turn without stopping it.
 - `/` opens slash commands and `@` references a file. Use Share → cccodroid in other apps to attach files directly.
+- The top row of ＋ next to the input box: Attach file, Take photo, Screenshot, Browse files. Photos are scaled to 2048 px on the long side before they're attached. **Long-press Screenshot to take it in 5 seconds**: switch to the app you want to capture in the meantime, and you'll be brought back afterwards.
 - Tool calls collapse into one line such as "3 steps · done"; tap to see each step. Steps that need you, or that failed, open on their own.
 - Paths in replies open in the viewer; web links open in the in-app browser.
 - Every message has four buttons. Yours: copy, resend, rewind to here, delete. Claude's: copy, share, fork from here, delete.
 - **Rewind to here** first lists the files changed since, then lets you undo just the code, or the code and the conversation. Files changed by shell commands are not restored.
-- `/goal <condition>` keeps Claude working turn after turn until the condition is met. Background tasks and the task list appear above the input box, and each can be stopped.
+- `/goal <condition>` keeps Claude working turn after turn until the condition is met. Background tasks and the task list appear above the input box, and each can be stopped; several background tasks fold into one line, tap it to expand.
 - The Chats page searches message content, filters, and exports or imports zips. Deleted chats stay in the trash for 30 days.
 
 ## Permissions and safety
@@ -107,7 +108,7 @@ Layout follows the window width, not orientation:
 ## Known issues
 
 - Fixed · All · **Pinyin input not reaching the box on first launch**: fixed in 0.3.7. On older versions, tap outside the input box and back.
-- Workaround · All · **Nothing scrolls anywhere**: a bug in the system WebView. The app detects it and recovers in about a second, restoring unsent text; if it does not, tap ❄ in the top bar.
+- Workaround · All · **Nothing scrolls anywhere**: a bug in the system WebView. The app detects it and recovers in about a second, restoring unsent text; if it does not, press and hold the title in the top bar (the conversation name) for about a second; the title fades, the phone gives a short buzz and recovery starts.
 - Workaround · Red Magic / Nubia · **Frozen after about 90 s in the background**: App info → Battery usage → allow background activity, and allow auto-start.
 - Workaround · Xiaomi / OPPO / vivo / Huawei · **Aggressive background cleaning**: set battery saving to unrestricted, allow auto-start and lock the card in recents. Per-brand steps are on the website's Known issues page.
 - Workaround · ZUI · **"Split screen not supported"**: the system's split-screen blocklist is stale. Reinstall over the top or reboot.

@@ -32,6 +32,17 @@ export const BUILTIN_PROVIDER = {
 //   智谱 GLM   docs.bigmodel.cn/cn/guide/develop/claude
 //   通义千问   help.aliyun.com/zh/model-studio/claude-code
 //   Kimi      platform.kimi.com/docs/guide/agent-support
+//   2026-10-26 补齐（官方文档 + 不带密钥探测 /v1/messages 回 401、对照路径 404）：
+//   MiniMax   platform.minimaxi.com/docs/m-plan/claude-code.md（国内已换 api.minimax.cn）
+//   火山方舟   docs.volcengine.com/docs/ark/coding-plan-personal-ai-claude-code（只有 Coding Plan 有 Anthropic 端点）
+//   小米 MiMo  mimo.mi.com/docs/zh-CN/tokenplan/integration/claudecode
+//   阶跃星辰   platform.stepfun.com/docs/zh/step-plan/integrations/claude-code.md
+//   百度千帆   cloud.baidu.com/doc/qianfan-docs/s/6mh3e6gjp、cloud.baidu.com/doc/qianfan/s/Dmrabu8b6
+//   腾讯混元   cloud.tencent.com/document/product/1823/130070（混元原平台迁到 TokenHub，按量地址不带 /anthropic）
+//   美团 LongCat longcat.chat/platform/docs/zh/ClaudeCode.html
+//   xAI Grok  docs.x.ai/openapi.json（POST /v1/messages "compatible with the Anthropic API"）
+//   Meta Muse dev.meta.ai/docs/coding-agents
+// 名字规矩：界面不是中文时显示 labelEn，所以厂商、线路都给英文名；模型显示名一律英文。
 // claude 直连这些端点（ANTHROPIC_BASE_URL + 密钥变量），不需要协议转换。
 // 配置文件只存用户自己的东西（密钥、选的线路、改过的默认模型）；目录本身随版本更新。
 const PRESETS = {
@@ -102,8 +113,150 @@ const PRESETS = {
     ],
     fallbackModels: [
       { id: "kimi-k3", name: "Kimi K3", context_window: 1048576 },
-      { id: "kimi-k2.7-code-highspeed", name: "Kimi K2.7 Code 高速" },
+      { id: "kimi-k2.7-code-highspeed", name: "Kimi K2.7 Code Highspeed" },
       { id: "kimi-k2.6", name: "Kimi K2.6", context_window: 262144 },
+    ],
+  },
+  minimax: {
+    label: "MiniMax", group: "third", authStyle: "bearer", modelsAuth: "bearer",
+    defaultModel: "MiniMax-M3.1-Flash", fastModel: "MiniMax-M3",
+    endpoints: [
+      { id: "cn", label: "国内 · minimax.cn", labelEn: "China · minimax.cn", baseUrl: "https://api.minimax.cn/anthropic",
+        modelsUrl: "https://api.minimax.cn/v1/models", keyUrl: "https://platform.minimax.cn/user-center/basic-information/interface-key" },
+      { id: "intl", label: "国际 · minimax.io", labelEn: "International · minimax.io", baseUrl: "https://api.minimax.io/anthropic",
+        modelsUrl: "https://api.minimax.io/v1/models", keyUrl: "https://platform.minimax.io/user-center/basic-information/interface-key" },
+    ],
+    hint: "按量计费的 Key 和 M Plan / Token Plan 订阅 Key 都填这里。M3.1 Flash 总是开着思考，关不掉。",
+    hintEn: "Works with both pay-as-you-go keys and M Plan / Token Plan subscription keys. M3.1 Flash always thinks; it can't be turned off.",
+    fallbackModels: [
+      { id: "MiniMax-M3.1-Flash", name: "MiniMax M3.1 Flash", context_window: 1000000 },
+      { id: "MiniMax-M3", name: "MiniMax M3", context_window: 1000000 },
+    ],
+  },
+  ark: {
+    label: "火山方舟（豆包）", labelEn: "Volcengine Ark (Doubao)", group: "third", authStyle: "bearer", modelsAuth: "bearer",
+    baseUrl: "https://ark.cn-beijing.volces.com/api/coding",
+    keyUrl: "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey",
+    defaultModel: "ark-code-latest", fastModel: "doubao-seed-2.1-lite",
+    extraEnv: { API_TIMEOUT_MS: "3000000" },
+    hint: "火山方舟 Coding Plan（个人版）。ark-code-latest 用的是你在方舟控制台里选的模型，切换后 3–5 分钟生效；套餐额度只能在编程工具里用。",
+    hintEn: "Volcengine Ark Coding Plan (personal). ark-code-latest uses whichever model you picked in the Ark console; switching takes 3–5 minutes. Plan quota only works inside coding tools.",
+    fallbackModels: [
+      { id: "ark-code-latest", name: "Ark Code Latest (model picked in console)" },
+      { id: "doubao-seed-2.1-pro", name: "Doubao Seed 2.1 Pro" },
+      { id: "doubao-seed-2.1-lite", name: "Doubao Seed 2.1 Lite" },
+      { id: "doubao-seed-evolving", name: "Doubao Seed Evolving" },
+      { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" },
+      { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" },
+      { id: "kimi-k2.8-preview", name: "Kimi K2.8 Preview" },
+    ],
+  },
+  mimo: {
+    label: "小米 MiMo", labelEn: "Xiaomi MiMo", group: "third", authStyle: "bearer", modelsAuth: "bearer",
+    defaultModel: "mimo-v2.6-pro", fastModel: "mimo-v2.6-flash",
+    endpoints: [
+      { id: "payg", label: "按量计费", labelEn: "Pay as you go", baseUrl: "https://api.xiaomimimo.com/anthropic",
+        modelsUrl: "https://api.xiaomimimo.com/v1/models", keyUrl: "https://platform.xiaomimimo.com/#/console/api-keys" },
+      { id: "plan", label: "Token Plan", baseUrl: "https://token-plan-cn.xiaomimimo.com/anthropic",
+        keyUrl: "https://platform.xiaomimimo.com/#/console/plan-manage" },
+    ],
+    hint: "按量计费的 Key 以 sk- 开头，Token Plan 的以 tp- 开头，两者不通用。V2.5 已于 10 月 21 日下线。",
+    hintEn: "Pay-as-you-go keys start with sk-, Token Plan keys with tp-; they aren't interchangeable. V2.5 was retired on Oct 21.",
+    fallbackModels: [
+      { id: "mimo-v2.6-pro", name: "MiMo V2.6 Pro", context_window: 1048576 },
+      { id: "mimo-v2.6-flash", name: "MiMo V2.6 Flash", context_window: 1048576 },
+    ],
+  },
+  stepfun: {
+    label: "阶跃星辰", labelEn: "StepFun", group: "third", authStyle: "bearer", modelsAuth: "bearer",
+    defaultModel: "step-5-preview", fastModel: "step-3.7-flash",
+    endpoints: [
+      { id: "cn", label: "国内 · 按量计费", labelEn: "China · Pay as you go", baseUrl: "https://api.stepfun.com",
+        modelsUrl: "https://api.stepfun.com/v1/models", keyUrl: "https://platform.stepfun.com/interface-key" },
+      { id: "cn-plan", label: "国内 · Step Plan", labelEn: "China · Step Plan", baseUrl: "https://api.stepfun.com/step_plan",
+        keyUrl: "https://platform.stepfun.com/interface-key" },
+      { id: "intl", label: "国际 · 按量计费", labelEn: "International · Pay as you go", baseUrl: "https://api.stepfun.ai",
+        modelsUrl: "https://api.stepfun.ai/v1/models", keyUrl: "https://platform.stepfun.ai/interface-key" },
+      { id: "intl-plan", label: "国际 · Step Plan", labelEn: "International · Step Plan", baseUrl: "https://api.stepfun.ai/step_plan",
+        keyUrl: "https://platform.stepfun.ai/interface-key" },
+    ],
+    hint: "Step Plan 要先订阅；组织空间的 Key 不能用在 Step Plan 线路上。",
+    hintEn: "Step Plan needs an active subscription; organization keys don't work on the Step Plan lines.",
+    fallbackModels: [
+      { id: "step-5-preview", name: "Step 5 Preview", context_window: 1048576 },
+      { id: "step-3.7-flash", name: "Step 3.7 Flash" },
+      { id: "step-3.5-flash", name: "Step 3.5 Flash" },
+    ],
+  },
+  qianfan: {
+    label: "百度千帆", labelEn: "Baidu Qianfan", group: "third", authStyle: "bearer", modelsAuth: "bearer",
+    keyUrl: "https://console.bce.baidu.com/qianfan/ais/console/apiKey",
+    extraEnv: { API_TIMEOUT_MS: "600000" },
+    endpoints: [
+      { id: "payg", label: "按量计费", labelEn: "Pay as you go", baseUrl: "https://qianfan.baidubce.com/anthropic",
+        modelsUrl: "https://qianfan.baidubce.com/v2/models", defaultModel: "deepseek-v3.2", fastModel: "deepseek-v3.2" },
+      { id: "tokenplan", label: "Token Plan 个人版", labelEn: "Token Plan (personal)", baseUrl: "https://qianfan.baidubce.com/anthropic/tokenplan/personal",
+        defaultModel: "qianfan-code-latest", fastModel: "qianfan-code-latest" },
+    ],
+    hint: "千帆上的对话模型都能用。Token Plan 填 qianfan-code-latest，实际用哪个模型在千帆控制台里选；套餐 Key 和按量 Key 不通用。",
+    hintEn: "Any chat model on Qianfan works. For Token Plan use qianfan-code-latest and pick the actual model in the Qianfan console; plan keys and pay-as-you-go keys aren't interchangeable.",
+    fallbackModels: [
+      { id: "deepseek-v3.2", name: "DeepSeek V3.2" },
+      { id: "kimi-k2.5", name: "Kimi K2.5" },
+      { id: "qianfan-code-latest", name: "Qianfan Code Latest (model picked in console)" },
+    ],
+  },
+  hunyuan: {
+    label: "腾讯混元", labelEn: "Tencent Hunyuan", group: "third", authStyle: "bearer", modelsAuth: "bearer",
+    defaultModel: "hy3-preview", fastModel: "hy3-preview",
+    keyUrl: "https://console.cloud.tencent.com/tokenhub",
+    extraEnv: { ENABLE_TOOL_SEARCH: "false" },
+    endpoints: [
+      { id: "cn", label: "国内 · TokenHub（广州）", labelEn: "China · TokenHub (Guangzhou)", baseUrl: "https://tokenhub.tencentmaas.com",
+        modelsUrl: "https://tokenhub.tencentmaas.com/v1/models" },
+      { id: "intl", label: "国际 · TokenHub（新加坡）", labelEn: "International · TokenHub (Singapore)", baseUrl: "https://tokenhub-intl.tencentmaas.com",
+        modelsUrl: "https://tokenhub-intl.tencentmaas.com/v1/models" },
+    ],
+    hint: "走腾讯云 TokenHub 按量计费（混元原平台已迁到这里）。TokenHub 上的其他模型也能在模型列表里选。",
+    hintEn: "Uses Tencent Cloud TokenHub pay-as-you-go (Hunyuan moved here from its old platform). Other TokenHub models show up in the model list too.",
+    fallbackModels: [
+      { id: "hy3-preview", name: "Hy3 Preview" },
+    ],
+  },
+  longcat: {
+    label: "美团 LongCat", labelEn: "Meituan LongCat", group: "third", authStyle: "bearer", modelsAuth: "bearer",
+    baseUrl: "https://api.longcat.chat/anthropic", modelsUrl: "https://api.longcat.chat/openai/v1/models",
+    keyUrl: "https://longcat.chat/platform/api_keys",
+    defaultModel: "LongCat-2.5-Preview", fastModel: "LongCat-2.5-Preview",
+    extraEnv: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: "131072" },
+    fallbackModels: [
+      { id: "LongCat-2.5-Preview", name: "LongCat 2.5 Preview" },
+      { id: "LongCat-2.0", name: "LongCat 2.0" },
+    ],
+  },
+  xai: {
+    label: "xAI Grok", group: "third", authStyle: "bearer", modelsAuth: "bearer",
+    baseUrl: "https://api.x.ai", modelsUrl: "https://api.x.ai/v1/models",
+    keyUrl: "https://console.x.ai",
+    defaultModel: "grok-4.7", fastModel: "grok-4.20-0309-non-reasoning",
+    fallbackModels: [
+      { id: "grok-4.7", name: "Grok 4.7", context_window: 500000 },
+      { id: "grok-4.3", name: "Grok 4.3", context_window: 1000000 },
+      { id: "grok-4.20-0309-reasoning", name: "Grok 4.20 Reasoning", context_window: 1000000 },
+      { id: "grok-4.20-0309-non-reasoning", name: "Grok 4.20 Non-reasoning", context_window: 1000000 },
+    ],
+  },
+  meta: {
+    label: "Meta Muse", group: "third", authStyle: "bearer", modelsAuth: "bearer",
+    baseUrl: "https://api.meta.ai", modelsUrl: "https://api.meta.ai/v1/models",
+    keyUrl: "https://dev.meta.ai/platform",
+    defaultModel: "muse-wonder-1.0", fastModel: "muse-spark-1.3",
+    extraEnv: { ENABLE_TOOL_SEARCH: "true" },
+    hint: "Meta Model API 还在公开预览，能不能用看所在国家和地区（中国大陆用不了）。",
+    hintEn: "Meta Model API is in public preview; availability depends on your country or region.",
+    fallbackModels: [
+      { id: "muse-wonder-1.0", name: "Muse Wonder 1.0", context_window: 1048576 },
+      { id: "muse-spark-1.3", name: "Muse Spark 1.3", context_window: 1048576 },
     ],
   },
 };

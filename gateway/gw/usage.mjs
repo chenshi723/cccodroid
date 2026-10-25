@@ -2,7 +2,7 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { execFile } from "node:child_process";
-import { CFG, HERE, PATHS, PREFIX, log, tz } from "./config.mjs";
+import { CFG, LIVE, HERE, PATHS, PREFIX, log, tz } from "./config.mjs";
 import { claudeEnv, readLedger } from "./claude.mjs";
 import { NEXT, readBody, sendJson } from "./http.mjs";
 import { devPrivStatus } from "./devside.mjs";
@@ -210,8 +210,10 @@ async function energySample() {
 }
 let energyBusy = null;
 const energySampleOnce = () => (energyBusy ||= energySample().finally(() => { energyBusy = null; }));
-setTimeout(() => energySampleOnce().catch(() => {}), 20e3).unref();
-setInterval(() => energySampleOnce().catch(() => {}), ENERGY_STEP).unref();
+if (LIVE) {
+  setTimeout(() => energySampleOnce().catch(() => {}), 20e3).unref();
+  setInterval(() => energySampleOnce().catch(() => {}), ENERGY_STEP).unref();
+}
 
 /** 给设置页：view = hour（近 24 小时）/ day（近 14 天）/ week（近 12 周，周一起） */
 async function energyReport(view) {

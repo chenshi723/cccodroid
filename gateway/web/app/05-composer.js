@@ -166,7 +166,7 @@
   function openCmdPalette(filter) {
     const caps = state.caps;
     const cmds = (caps?.slashCommands || []).filter((c) => !filter || c.name.includes(filter));
-    showPopup("cmd", cmds.map((c) => ({ label: "/" + c.name, desc: c.desc || "", cat: c.cat, raw: c.name })),
+    showPopup("cmd", cmds.map((c) => ({ label: "/" + c.name, desc: c.desc ? t(c.desc) : "", cat: c.cat && t(c.cat), raw: c.name })),
       t("斜杠命令") + (filter ? t(" · 匹配 “{q}”", { q: filter }) : ""));
   }
 
@@ -395,6 +395,11 @@
   fileInput.addEventListener("change", async () => {
     await uploadFiles(fileInput.files);
     fileInput.value = "";
+  });
+  // 拍照：外壳已缩到长边 2048 并转正，这里照普通附件传
+  $("cam-input").addEventListener("change", async (e) => {
+    await uploadFiles(e.target.files);
+    e.target.value = "";
   });
   $("btn-attach").addEventListener("click", pickFiles);
   $("fs-pick").addEventListener("click", pickFiles);

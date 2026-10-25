@@ -13,6 +13,11 @@
   "sha256": "b17678657b676a59d686483ff98656d29df167038718d82c1f58cd73b6a5d7c9",
   "bytes": 1879589376
  },
+ "lock": {
+  "file": "devkit.lock.json",
+  "sha256": "16790b873db3988868661955cff090f737b214a3c95bfe330d45fee5ef259b6b",
+  "bytes": 113078
+ },
  "modules": {
   "file": "modules.json",
   "sha256": "798f03a11345a562cecd8ad3674f116c381b322d00f429e758be817f80caf101",

@@ -81,6 +81,7 @@ const S = {
     const dirty = git("status", "--porcelain").split("\n").filter(Boolean).map((l) => l.slice(3)).filter((f) => !allowed(f));
     if (dirty.length) throw new Error("工作区还有别的没提交的改动，先提交或收起：\n  " + dirty.join("\n  "));
     for (const f of [`${F}/bldtools/cccodroid-release.json`, `${F}/bldtools/gh-token-cccodroid`]) if (!fs.existsSync(f)) throw new Error(`缺 ${f}`);
+    run("node", [path.join(ROOT, "scripts/test.mjs")], { cwd: ROOT });      // 网关测试不过就不发
     console.log(`  当前 ${cur.name}（${cur.code}）→ ${VER}`);
   },
   bump() {

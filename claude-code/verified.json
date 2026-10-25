@@ -1,0 +1,19 @@
+{
+ "v": 1,
+ "updated": "2026-10-24T16:36:34.395Z",
+ "versions": {
+  "2.1.308": [
+   {
+    "at": "2026-10-24",
+    "device": "LENOVO TB320FC",
+    "android": "15",
+    "sdk": 35,
+    "targetSdk": 28,
+    "app": "0.4.1",
+    "devkit": "devkit-2026.10.22.3",
+    "sha256": "fdd22e6cbb734d580f5664c48df4294eeec850218ff07f186f9af30426396ee1"
+   }
+  ]
+ },
+ "bad": {}
+}

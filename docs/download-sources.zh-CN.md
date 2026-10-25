@@ -15,13 +15,19 @@ cccodroid 要从网上取的东西有八类，大多有不止一个来源。这�
 | # | 下载什么 | 来源（按尝试顺序） | 信任锚 | 代码 |
 |---|---|---|---|---|
 | 1 | 开发工具包（0.3.9 起按模块：默认约 330 MB，全部约 700 MB；旧版 App 用整包约 650 MB） | GitHub Release → dl.cccodroid.net/devkit/ | APK 自带的 `devkit-pin.json`（整包 gz / tar 与 `modules.json` 的 sha256，`modules.json` 里再有每块的 sha256） | `Installer.java`、`Updater.java`、`gateway/gw/modules.mjs`（扩展页加装） |
-| 2 | APK 更新 | GitHub API → cccodroid.net/dl/releases.json | Android 的 APK 签名（同一把发布钥匙才能覆盖安装）+ 发布列表里的 sha256 | `Updater.java` |
+| 2 | APK 更新 | 发布列表：GitHub API → cccodroid.net/dl/releases.json → dl.cccodroid.net/dl/releases.json；APK：GitHub Release → cccodroid.net/dl/ → dl.cccodroid.net/dl/ → gh-proxy | Android 的 APK 签名（同一把发布钥匙才能覆盖安装）+ 发布列表里的 sha256 | `Updater.java` |
 | 3 | Claude Code | 官方直链 → npmmirror → 腾讯云 npm → npmjs（上次成功的排最前） | Anthropic 官方清单的 sha256（清单本身验 Anthropic 的 PGP 签名）；都拿不到时验 npm 的 ECDSA 签名 | `assets/scripts/install-claude.mjs` |
 | 4 | 组件索引 | GitHub Release → cccodroid.net/components/ | 钉在网关里的 ed25519 公钥 | `gateway/gw/components.mjs` `compFetchIndex` |
 | 5 | 组件包 | GitHub Release ⇄ dl.cccodroid.net/components/（轮流试，记住上次成功的） | 签名索引里的 sha256，解包后再按包内 MANIFEST 逐个核对 | `gateway/gw/components.mjs` `compRunInstall` |
 | 6 | pkg 装软件 | Termux 官方 → packages.termux.dev → grimler.se → 清华/中科大/北外/南大（main、x11） | 钉在 pkg 里的 Termux 自动构建钥，验 `Release.gpg` | `assets/bin/pkg.mjs` |
 | 7 | 自定义组件补 glibc 库 | Termux 官方 glibc 仓库（只此一个） | HTTPS + `Packages` 里的 sha256 | `gateway/gw/custom.mjs` `customFetchLibs` |
 | 8 | 端侧模型 | 魔搭（仅 Qwen 官方）→ HuggingFace → hf-mirror.com | 目录里钉的 sha256（取自 HF LFS） | `gateway/gw/local.mjs` `LOCAL_CATALOG` |
+
+**0.4.1 起的两项通用做法**（工具包、APK 更新、组件包、Claude Code 都适用）：
+
+- **分段并行**：文件不小于 16 MB、服务器认 Range 时，把没下的部分切成最多 4 段同时下，按偏移写进同一个 `.part`（先占满到总大小），每段进度记在 `.part.seg`。被打断或换来源后按它续传；`.seg` 和 `.part` 对不上就两个都作废重来。来源不认 Range 时退回单连接。实测 dl.cccodroid.net 单线约 2.7 MB/s，4 路约 14 MB/s。代码：`Installer.java` 的 `fetchSegmented`、`gateway/gw/pget.mjs`。
+- **低速换源**（0.4.2 起，APK 与工具包的 Java 下载）：每条连接每 30 秒一窗，不到 600 KB 就当这次失败，触发重试与换源；已经没有别的来源时不计失败次数、接着续传。以前只有连不上、或 60 秒一个字节不来才换源，GitHub 慢慢滴的时候会一直卡在 0%（群友报的 0.3.16 → 0.4.1）。代码：`Installer.java` 的 `Slow`。
+- **gh-proxy.com 兜底**：GitHub 地址在其余来源都不顺时，最后再试一次 `https://gh-proxy.com/github.com/…`。这是第三方服务，不需要信任它：内容照样按上表的信任锚核对。（讨论区 #15 的建议）
 
 另外，有的组件首次运行时还会自己下东西，比如 Blender 从 Debian 官方仓库取本体、从 GitHub 取补丁版 Mesa。这部分由组件自己的首次运行脚本负责，按脚本里钉的 sha256 核对，**不在本文的多源机制内**。
 
@@ -56,13 +62,14 @@ nginx 配置：`/etc/nginx/sites-available/cccodroid.conf` 和 `cccodroid-dl.con
 
 ### 1. 开发工具包
 
-- 首次安装时，安装页让用户选来源：GitHub、cccodroid.net 镜像，或本地文件。GitHub 和镜像互为备用，**只切换一次**，用同一个 `.part` 文件接着续传。
+- 首次安装时，安装页让用户选来源：GitHub、cccodroid.net 镜像，或本地文件。GitHub 和镜像互为备用，最后再试 gh-proxy；按顺序依次换、不回头，用同一个 `.part` 文件接着续传。
 - 校验值以 APK 里的 `assets/devkit-pin.json` 为准。这个文件由 `scripts/pin-devkit.mjs` 生成，`build.sh` 会核对它和 `devkit-sources.txt` 是不是同一版。
 - **改工具包版本时**：先发布 devkit Release，再更新 `devkit-sources.txt`，然后跑 `pin-devkit.mjs`，最后打 APK。服务器会自动把新绑定的那一版同步过去。
 
 ### 2. APK 更新
 
-- 先查 GitHub API。查不到就读 `cccodroid.net/dl/releases.json`，这份文件和 GitHub 的发布列表形状相同。APK 本身由 Android 按签名把关。
+- 先查 GitHub API。查不到就读 `cccodroid.net/dl/releases.json`，再不行读 `dl.cccodroid.net/dl/releases.json`（同一份文件，直连不经 Cloudflare）。这份文件和 GitHub 的发布列表形状相同。APK 本身由 Android 按签名把关。
+- APK 依次试 GitHub Release → `cccodroid.net/dl/<版本>/` → `dl.cccodroid.net/dl/<版本>/` → gh-proxy，同一个 `.part` 接着续传。dl 线路的 `/dl/` 是 0.4.2 时加的（VPS 上 `cccodroid-dl.conf`，与主站共用 `data/dl/` 目录），之前的版本只用前两个。
 - 本地测试可以写 `home/.config/cccodroid/update-feed` 来覆盖发布列表的地址。
 
 ### 3. Claude Code（最复杂的一项）

@@ -8,6 +8,7 @@ import { termEnv } from "./terminal.mjs";
 import { COMP_DIR, compRecord, devkitIdentity } from "./components.mjs";
 import { modInstalled, modulesInfo } from "./modules.mjs";
 import { reconcileFacts } from "./reconcile.mjs";
+import { deviceFacts } from "./device.mjs";
 
 // ── 本机实况：TOOLS.md 是打包时在测试机上测的，这里补上「这台设备上实际怎样」 ──
 // 自检（cccodroid-selftest）在本机跑一遍，失败项和 INFO（比如有没有硬件编码器）接在 TOOLS.md 后面；
@@ -60,6 +61,8 @@ if (PREFIX) { setTimeout(envFactsTick, 2 * 60e3).unref?.(); setInterval(envFacts
 const pickDesc = (m) => (m.desc && m.desc.zh) || "";
 export function envFacts() {
   const out = [];
+  const dev = deviceFacts();
+  if (dev) out.push(dev);
   const dk = devkitIdentity();
   if (dk && dk.tag) out.push(`- 工具包：${dk.tag}`);
   // 模块化工具包：装了哪些模块；没装的模块里的命令现在用不了 —— TOOLS.md 是按全装写的，这里纠正

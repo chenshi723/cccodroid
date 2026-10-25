@@ -12,7 +12,7 @@
 // 本机实况里告诉 Claude，问题有变化时记一笔修复账本。
 import fs from "node:fs";
 import path from "node:path";
-import { CFG, PATHS, PREFIX, log, reqLang, tr, tz } from "./config.mjs";
+import { CFG, LIVE, PATHS, PREFIX, log, reqLang, tr, tz } from "./config.mjs";
 import { ledger } from "./claude.mjs";
 import { COMP_DIR, compRecord, devkitIdentity } from "./components.mjs";
 import { modInstalled, modulesInfo } from "./modules.mjs";
@@ -148,7 +148,7 @@ export function reconcileFacts() {
     ...bad.slice(0, 6).map((f) => `  - ${tzFill(f)}${f.fix ? " —— " + f.fix : ""}`)];
 }
 
-if (PREFIX) setTimeout(() => reconcileRun(), 60e3).unref?.();
+if (PREFIX && LIVE) setTimeout(() => reconcileRun(), 60e3).unref?.();
 
 // GET /api/reconcile[?run=1][&format=selftest]
 export async function routeReconcile(req, res, u, p) {

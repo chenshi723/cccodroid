@@ -1,5 +1,25 @@
 {
  "v": 1,
- "updated": "2026-10-22T07:19:21.749Z",
- "notices": []
+ "updated": "2026-10-25T02:14:07.308Z",
+ "notices": [
+  {
+   "id": "20261025-stance",
+   "level": "info",
+   "from": "2026-10-25",
+   "title": {
+    "zh": "严正声明",
+    "en": "Our position"
+   },
+   "body": {
+    "zh": "cccodroid 坚决反对以下做法：反代、共享或转售账户；破甲，即绕过模型的安全限制；用 agent 批量注册、养号、刷屏，冒充真人发言。项目不提供相关功能，不接受这类 PR 和组件，也不帮忙排查这类用法出的问题。",
+    "en": "cccodroid firmly opposes reverse proxies and shared or resold accounts, jailbreaking a model's safety limits, and using agents to register, farm or run accounts in bulk while posing as real people. The project offers no such features, accepts no PRs or components for them, and won't help troubleshoot problems that come from them."
+   },
+   "until": "2026-11-08",
+   "link": "https://github.com/greyoak111/cccodroid/blob/main/README.zh-CN.md#本项目反对的做法",
+   "linkText": {
+    "zh": "完整说明",
+    "en": "Details"
+   }
+  }
+ ]
 }

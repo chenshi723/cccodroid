@@ -23,10 +23,25 @@ final class Env {
         return c;
     }
 
-    /** WebView 首次加载的地址：带 ?t= 让网关种 Cookie */
+    /** 原生桥（CCApp）的口令：每次进程启动随机生成，只经首页地址交给界面主框架。
+     *  addJavascriptInterface 会注入到 WebView 里的每一个 frame（包括 HTML 预览的 iframe），而且分不出是谁在调；
+     *  有副作用的方法都要带这个口令，预览页拿不到它（不同源，读不到主框架的地址和 sessionStorage）。10-25 安全审计 H-2 */
+    static final String BRIDGE_KEY;
+    static {
+        byte[] b = new byte[16];
+        new java.security.SecureRandom().nextBytes(b);
+        StringBuilder sb = new StringBuilder();
+        for (byte x : b) sb.append(String.format("%02x", x & 0xff));
+        BRIDGE_KEY = sb.toString();
+    }
+    static boolean bridgeOk(String k) {
+        return k != null && java.security.MessageDigest.isEqual(k.getBytes(), BRIDGE_KEY.getBytes());
+    }
+
+    /** WebView 首次加载的地址：带 ?t= 让网关种 Cookie，带 k= 把原生桥口令交给界面 */
     static String uiUrl() {
         String t = token();
-        return "http://127.0.0.1:" + PORT + "/" + (t.isEmpty() ? "" : "?t=" + t);
+        return "http://127.0.0.1:" + PORT + "/?" + (t.isEmpty() ? "" : "t=" + t + "&") + "k=" + BRIDGE_KEY;
     }
 
     final File files, usr, home, app, log;

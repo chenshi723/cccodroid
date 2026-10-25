@@ -33,6 +33,8 @@ export const SETTINGS = {
   staticCompat: true,
   // 空闲压缩：长会话闲置快一小时、1 小时提示缓存快过期时先压缩，下一条消息不用把整段历史重算一遍（见 idleArm）
   idleCompaction: true,
+  // 工作岛：把 Claude 的工作状态送到 ColorOS 16 灵动岛（可选，默认关；见 gw/work-island.mjs）
+  workIsland: false,
   // 端侧小模型：chat = 纯聊天（不给工具，提示只有几十 token）；custom = 用户自己的 ~/.cccodroid/local-mode.json
   localMode: "chat",
 };
@@ -155,6 +157,7 @@ export async function routeSettings(req, res, u, p) {
 
       if ("staticCompat" in b) { SETTINGS.staticCompat = !!b.staticCompat; try { customRefresh(); } catch {} }   // 下一轮生效；自定义组件的入口立刻跟着改
       if ("idleCompaction" in b) { SETTINGS.idleCompaction = !!b.idleCompaction; if (!SETTINGS.idleCompaction) idleDisarmAll(); }
+      if ("workIsland" in b) SETTINGS.workIsland = !!b.workIsland;
 
       if ("maxParallel" in b) {
         const n = Math.round(Number(b.maxParallel));
@@ -195,7 +198,12 @@ export async function routeSettings(req, res, u, p) {
       }
 
       saveSettings();
-      log(`设置已更新 provider=${PROVIDER.id} model=${SETTINGS.model || "(默认)"} effort=${SETTINGS.effort} autoCompact=${SETTINGS.autoCompactWindow || "(默认)"}`);
+      if ("workIsland" in b) {
+        import("./work-island.mjs")
+          .then((m) => m.applyWorkIslandSetting())
+          .catch((e) => log("工作岛设置应用失败: " + e.message));
+      }
+      log(`设置已更新 provider=${PROVIDER.id} model=${SETTINGS.model || "(默认)"} effort=${SETTINGS.effort} autoCompact=${SETTINGS.autoCompactWindow || "(默认)"} workIsland=${SETTINGS.workIsland}`);
       return sendJson(res, 200, { ok: true, settings: SETTINGS, provider: PROVIDER.id, upstream: CFG.upstream });
     }
   }

@@ -10,7 +10,7 @@
    "url": "https://github.com/greyoak111/cccodroid",
    "provider": "github",
    "link_mode": "web",
-   "revision": "6706b6e9fa6fd672be6ddb9567b48e65bb8a9628"
+   "revision": "abe9782812f211d96fe956346b9665ae4afb9c88"
   }
  },
  "components": [
@@ -32,8 +32,8 @@
    "id": "ui",
    "type": "frontend",
    "label": "UI",
-   "sublabel": "WebView + app.js",
-   "tag": "8 languages",
+   "sublabel": "WebView · web/app, 19 parts",
+   "tag": "9 languages",
    "pos": [
     220,
     196
@@ -45,18 +45,13 @@
    "sources": [
     {
      "path": "android/java/cc/codroid/MainActivity.java",
-     "line": 441,
-     "end_line": 454
+     "line": 1142,
+     "end_line": 1142
     },
     {
-     "path": "android/java/cc/codroid/Env.java",
-     "line": 26,
-     "end_line": 30
-    },
-    {
-     "path": "gateway/web/app.js",
-     "line": 116,
-     "end_line": 116
+     "path": "gateway/gw/http.mjs",
+     "line": 79,
+     "end_line": 80
     }
    ]
   },
@@ -76,22 +71,17 @@
    "sources": [
     {
      "path": "android/java/cc/codroid/GatewayService.java",
-     "line": 59,
-     "end_line": 72
-    },
-    {
-     "path": "android/java/cc/codroid/GatewayService.java",
-     "line": 150,
-     "end_line": 151
+     "line": 63,
+     "end_line": 64
     }
    ]
   },
   {
    "id": "gw",
    "type": "backend",
-   "label": "Gateway server.mjs",
-   "sublabel": "Node · 127.0.0.1:8791",
-   "tag": "token · queue",
+   "label": "Gateway",
+   "sublabel": "server.mjs + gw/ modules",
+   "tag": "token · event bus",
    "pos": [
     460,
     196
@@ -102,19 +92,19 @@
    ],
    "sources": [
     {
-     "path": "gateway/server.mjs",
-     "line": 3519,
-     "end_line": 3556
+     "path": "gateway/gw/access.mjs",
+     "line": 11,
+     "end_line": 12
     },
     {
-     "path": "gateway/server.mjs",
-     "line": 2471,
-     "end_line": 2498
+     "path": "gateway/gw/bus.mjs",
+     "line": 18,
+     "end_line": 18
     },
     {
-     "path": "gateway/server.mjs",
-     "line": 3999,
-     "end_line": 4004
+     "path": "gateway/gw/run.mjs",
+     "line": 32,
+     "end_line": 32
     }
    ]
   },
@@ -122,7 +112,7 @@
    "id": "claude",
    "type": "backend",
    "label": "Claude Code",
-   "sublabel": "official, unmodified binary",
+   "sublabel": "official binary, unmodified",
    "tag": "seccomp shim",
    "pos": [
     740,
@@ -134,40 +124,41 @@
    ],
    "sources": [
     {
-     "path": "gateway/server.mjs",
-     "line": 2778,
-     "end_line": 2781
+     "path": "gateway/gw/run.mjs",
+     "line": 187,
+     "end_line": 187
     },
     {
-     "path": "android/java/cc/codroid/Env.java",
-     "line": 100,
-     "end_line": 101
+     "path": "gateway/gw/stream.mjs",
+     "line": 85,
+     "end_line": 85
     }
    ]
   },
   {
    "id": "api",
    "type": "cloud",
-   "label": "Model API",
-   "sublabel": "official account or 3rd-party provider",
+   "label": "Model APIs",
+   "sublabel": "Claude account · DeepSeek · Kimi…",
+   "tag": "per conversation",
    "pos": [
-    990,
+    1250,
     196
    ],
    "size": [
-    170,
+    210,
     72
    ],
    "sources": [
     {
-     "path": "gateway/server.mjs",
-     "line": 800,
-     "end_line": 810
+     "path": "gateway/gw/providers.mjs",
+     "line": 10,
+     "end_line": 12
     },
     {
-     "path": "gateway/server.mjs",
-     "line": 74,
-     "end_line": 76
+     "path": "gateway/gw/sessmodel.mjs",
+     "line": 32,
+     "end_line": 44
     }
    ]
   },
@@ -175,7 +166,7 @@
    "id": "upd",
    "type": "backend",
    "label": "Updater / Installer",
-   "sublabel": "first install & updates",
+   "sublabel": "APK 28/36 · toolkit modules",
    "pos": [
     740,
     40
@@ -187,32 +178,32 @@
    "sources": [
     {
      "path": "android/java/cc/codroid/Updater.java",
-     "line": 33,
-     "end_line": 35
+     "line": 27,
+     "end_line": 37
     },
     {
      "path": "android/java/cc/codroid/Updater.java",
-     "line": 252,
-     "end_line": 252
+     "line": 135,
+     "end_line": 138
     },
     {
      "path": "android/java/cc/codroid/Installer.java",
-     "line": 20,
-     "end_line": 42
+     "line": 21,
+     "end_line": 21
     }
    ]
   },
   {
    "id": "dl",
    "type": "cloud",
-   "label": "Release sources",
-   "sublabel": "GitHub Releases · downloads.claude.ai",
+   "label": "Releases & mirrors",
+   "sublabel": "GitHub · cccodroid.net · official",
    "pos": [
-    990,
+    1250,
     40
    ],
    "size": [
-    170,
+    180,
     64
    ],
    "sources": [
@@ -220,84 +211,11 @@
      "path": "android/java/cc/codroid/Updater.java",
      "line": 33,
      "end_line": 33
-    }
-   ]
-  },
-  {
-   "id": "priv",
-   "type": "security",
-   "label": "Priv relay",
-   "sublabel": "checks caller uid",
-   "pos": [
-    220,
-    380
-   ],
-   "size": [
-    160,
-    64
-   ],
-   "sources": [
+    },
     {
-     "path": "android/java/cc/codroid/Priv.java",
-     "line": 30,
+     "path": "android/java/cc/codroid/Updater.java",
+     "line": 44,
      "end_line": 44
-    },
-    {
-     "path": "gateway/server.mjs",
-     "line": 2977,
-     "end_line": 2985
-    }
-   ]
-  },
-  {
-   "id": "home",
-   "type": "database",
-   "label": "home/",
-   "sublabel": "sessions · settings · token",
-   "pos": [
-    470,
-    380
-   ],
-   "size": [
-    150,
-    64
-   ],
-   "sources": [
-    {
-     "path": "gateway/server.mjs",
-     "line": 60,
-     "end_line": 60
-    },
-    {
-     "path": "gateway/server.mjs",
-     "line": 3519,
-     "end_line": 3519
-    }
-   ]
-  },
-  {
-   "id": "devkit",
-   "type": "database",
-   "label": "devkit toolchain",
-   "sublabel": "$PREFIX · relocated Termux pkgs",
-   "pos": [
-    740,
-    380
-   ],
-   "size": [
-    160,
-    64
-   ],
-   "sources": [
-    {
-     "path": "devkit/devkit.mjs",
-     "line": 1,
-     "end_line": 16
-    },
-    {
-     "path": "android/java/cc/codroid/Installer.java",
-     "line": 170,
-     "end_line": 200
     }
    ]
   },
@@ -317,16 +235,175 @@
    "sources": [
     {
      "path": "android/java/cc/codroid/ShizukuSetup.java",
-     "line": 43,
+     "line": 50,
      "end_line": 50
+    }
+   ]
+  },
+  {
+   "id": "priv",
+   "type": "security",
+   "label": "Priv relay",
+   "sublabel": "checks peer uid",
+   "pos": [
+    220,
+    380
+   ],
+   "size": [
+    160,
+    64
+   ],
+   "sources": [
+    {
+     "path": "android/java/cc/codroid/Priv.java",
+     "line": 30,
+     "end_line": 33
+    },
+    {
+     "path": "android/java/cc/codroid/Priv.java",
+     "line": 255,
+     "end_line": 255
+    }
+   ]
+  },
+  {
+   "id": "home",
+   "type": "database",
+   "label": "home/",
+   "sublabel": "sessions · settings · token",
+   "pos": [
+    470,
+    380
+   ],
+   "size": [
+    150,
+    64
+   ],
+   "sources": [
+    {
+     "path": "gateway/gw/config.mjs",
+     "line": 11,
+     "end_line": 11
+    },
+    {
+     "path": "gateway/gw/sessions.mjs",
+     "line": 65,
+     "end_line": 65
+    }
+   ]
+  },
+  {
+   "id": "devkit",
+   "type": "database",
+   "label": "devkit toolchain",
+   "sublabel": "base + optional modules",
+   "tag": "Termux, equal-length prefix",
+   "pos": [
+    740,
+    380
+   ],
+   "size": [
+    160,
+    64
+   ],
+   "sources": [
+    {
+     "path": "devkit/devkit.mjs",
+     "line": 1,
+     "end_line": 16
+    },
+    {
+     "path": "gateway/gw/modules.mjs",
+     "line": 21,
+     "end_line": 38
+    }
+   ]
+  },
+  {
+   "id": "loader",
+   "type": "security",
+   "label": "Loader in the APK",
+   "sublabel": "libldlinux.so · exec shim",
+   "tag": "targetSdk 36",
+   "pos": [
+    990,
+    380
+   ],
+   "size": [
+    180,
+    64
+   ],
+   "sources": [
+    {
+     "path": "android/java/cc/codroid/Env.java",
+     "line": 173,
+     "end_line": 177
+    },
+    {
+     "path": "android/native/exec-shim.c",
+     "line": 5,
+     "end_line": 11
+    },
+    {
+     "path": "android/prebuilt/glibc/ld.json",
+     "line": 1,
+     "end_line": 5
+    }
+   ]
+  },
+  {
+   "id": "mcp",
+   "type": "backend",
+   "label": "Device tools MCP",
+   "sublabel": "notify · clipboard · share · a11y",
+   "tag": "an MCP server for Claude",
+   "pos": [
+    220,
+    540
+   ],
+   "size": [
+    160,
+    64
+   ],
+   "sources": [
+    {
+     "path": "android/assets/bin/device-mcp.mjs",
+     "line": 5,
+     "end_line": 5
+    },
+    {
+     "path": "android/java/cc/codroid/DeviceTools.java",
+     "line": 54,
+     "end_line": 54
+    }
+   ]
+  },
+  {
+   "id": "skills",
+   "type": "database",
+   "label": "~/.claude/skills",
+   "sublabel": "skills from components",
+   "pos": [
+    470,
+    540
+   ],
+   "size": [
+    150,
+    64
+   ],
+   "sources": [
+    {
+     "path": "gateway/gw/components.mjs",
+     "line": 354,
+     "end_line": 354
     }
    ]
   },
   {
    "id": "comp",
    "type": "backend",
-   "label": "Component manager",
-   "sublabel": "verify · install · clean removal",
+   "label": "Components",
+   "sublabel": "verify · install · clean up",
    "tag": "ed25519",
    "pos": [
     740,
@@ -338,45 +415,14 @@
    ],
    "sources": [
     {
-     "path": "gateway/server.mjs",
-     "line": 1803,
-     "end_line": 1812
+     "path": "gateway/gw/components.mjs",
+     "line": 29,
+     "end_line": 29
     },
     {
-     "path": "gateway/server.mjs",
-     "line": 1836,
-     "end_line": 1846
-    },
-    {
-     "path": "gateway/server.mjs",
-     "line": 2043,
-     "end_line": 2071
-    }
-   ]
-  },
-  {
-   "id": "skills",
-   "type": "database",
-   "label": "~/.claude/skills",
-   "sublabel": "skills shipped by components",
-   "pos": [
-    470,
-    540
-   ],
-   "size": [
-    150,
-    64
-   ],
-   "sources": [
-    {
-     "path": "gateway/server.mjs",
-     "line": 2072,
-     "end_line": 2083
-    },
-    {
-     "path": "gateway/server.mjs",
-     "line": 3461,
-     "end_line": 3462
+     "path": "gateway/gw/components.mjs",
+     "line": 69,
+     "end_line": 69
     }
    ]
   },
@@ -384,9 +430,9 @@
    "id": "market",
    "type": "cloud",
    "label": "Component market",
-   "sublabel": "recipe → CI audit → build → signed index",
+   "sublabel": "recipe → CI audit → signed index",
    "pos": [
-    990,
+    1250,
     540
    ],
    "size": [
@@ -398,7 +444,7 @@
  "boundaries": [
   {
    "kind": "region",
-   "label": "cc.codroid app sandbox (private dirs only)",
+   "label": "cc.codroid app sandbox (writes only its private dirs)",
    "wraps": [
     "ui",
     "svc",
@@ -408,6 +454,8 @@
     "priv",
     "home",
     "devkit",
+    "loader",
+    "mcp",
     "comp",
     "skills"
    ]
@@ -418,7 +466,7 @@
    "id": "touch",
    "from": "user",
    "to": "ui",
-   "label": "use",
+   "label": "uses",
    "variant": "emphasis"
   },
   {
@@ -446,32 +494,38 @@
    "id": "svc-gw",
    "from": "svc",
    "to": "gw",
-   "label": "spawn · restart"
+   "label": "starts · restarts"
   },
   {
    "id": "upd-dl",
    "from": "upd",
    "to": "dl",
-   "label": "download",
+   "label": "download · hash",
    "variant": "dashed"
   },
   {
    "id": "upd-claude",
    "from": "upd",
    "to": "claude",
-   "label": "install / upgrade"
+   "label": "install / update"
   },
   {
    "id": "gw-home",
    "from": "gw",
    "to": "home",
-   "label": "read/write"
+   "label": "reads / writes"
   },
   {
    "id": "claude-devkit",
    "from": "claude",
    "to": "devkit",
    "label": "Bash tool"
+  },
+  {
+   "id": "loader-devkit",
+   "from": "loader",
+   "to": "devkit",
+   "label": "rewrites exec"
   },
   {
    "id": "gw-priv",
@@ -488,6 +542,13 @@
    "variant": "security"
   },
   {
+   "id": "mcp-priv",
+   "from": "mcp",
+   "to": "priv",
+   "label": "local socket",
+   "variant": "security"
+  },
+  {
    "id": "gw-comp",
    "from": "gw",
    "to": "comp",
@@ -497,7 +558,7 @@
    "id": "comp-market",
    "from": "comp",
    "to": "market",
-   "label": "index + packages · verified",
+   "label": "index + packages · verify",
    "variant": "dashed"
   },
   {
@@ -510,7 +571,7 @@
    "id": "comp-skills",
    "from": "comp",
    "to": "skills",
-   "label": "copy skill"
+   "label": "copy skills"
   },
   {
    "id": "claude-skills",
@@ -525,37 +586,37 @@
    "dot": "emerald",
    "title": "Main path",
    "items": [
-    "The UI only subscribes: runs belong to the gateway and survive reloads and backgrounding",
-    "Queued messages wait at the end of the chat; Stop only stops",
-    "Claude Code is the official build, byte-for-byte unmodified",
-    "Tool calls that need approval show a card; per-call approval by default, as upstream"
+    "The UI only subscribes: runs belong to the gateway, so refreshing or backgrounding never cuts them",
+    "Each conversation can use its own model and provider, running side by side",
+    "Claude Code is the official build, not a byte changed",
+    "Tool calls that need approval show a card: ask each time by default, as upstream does"
    ]
   },
   {
    "dot": "rose",
    "title": "Security",
    "items": [
-    "Gateway /api/* requires a 256-bit token; Host and Origin are checked",
-    "Signed-in sessions talk to Anthropic directly, never through a local relay",
-    "priv only accepts calls from the app's own uid"
+    "Gateway /api/* requires a 256-bit token and checks Host and Origin",
+    "Sign-in is the official flow: the code is pasted to claude in the terminal, never through the gateway",
+    "priv accepts only this app's uid; device tools (an MCP server for Claude) are off by default, and the user confirms before another app opens"
    ]
   },
   {
    "dot": "cyan",
-   "title": "Toolchain",
+   "title": "Toolchain & packages",
    "items": [
-    "devkit is assembled from official Termux packages and relocated in place (same-length prefix)",
-    "Entries inside zip/jmod archives are relocated too"
+    "devkit is assembled from the official Termux repos and relocated with equal-length prefixes; extras install as modules",
+    "Two APKs, targetSdk 28 and 36 — same version and signature, either installs over the other",
+    "The 36 build can't exec files in its data dir: programs start via the APK's own ld.so or linker64"
    ]
   },
   {
    "dot": "amber",
-   "title": "Component ecosystem",
+   "title": "Components",
    "items": [
-    "A component adds commands plus a skill, so Claude learns to use them on its own",
-    "Community recipes reference Termux packages or upstream files pinned by sha256",
-    "CI audits every build and grades it green / amber / red, so humans review only what matters",
-    "The app trusts only the ed25519-signed index, which pins every package's sha256"
+    "One component = new commands + a skill: Claude learns to use them on its own",
+    "Community recipes may only use official Termux packages or upstream files pinned by sha256",
+    "The app only trusts an ed25519-signed index, which lists every package's sha256"
    ]
   }
  ]

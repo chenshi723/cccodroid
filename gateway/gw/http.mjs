@@ -98,6 +98,8 @@ export function sendJson(res, code, obj) {
   res.end(b);
 }
 
+// 界面自己的静态文件：不许别的站点把它套进 frame（界面内部的 iframe 同源，不受影响），不让浏览器猜类型
+const STATIC_SAFE = { "x-content-type-options": "nosniff", "content-security-policy": "frame-ancestors 'self'" };
 export function serveStatic(req, res, urlPath) {
   let rel = urlPath === "/" ? "/index.html" : urlPath;
   rel = rel.replace(/^\/+/, "");
@@ -105,7 +107,7 @@ export function serveStatic(req, res, urlPath) {
   if (rel === "app.js") {
     const data = appJs();
     if (data) {
-      res.writeHead(200, { "content-type": MIME[".js"], "content-length": data.length, "cache-control": "no-store" });
+      res.writeHead(200, { "content-type": MIME[".js"], "content-length": data.length, "cache-control": "no-store", ...STATIC_SAFE });
       return res.end(data);
     }
   }
@@ -119,6 +121,7 @@ export function serveStatic(req, res, urlPath) {
     "content-type": MIME[path.extname(full).toLowerCase()] || "application/octet-stream",
     "content-length": data.length,
     "cache-control": "no-store",
+    ...STATIC_SAFE,
   });
   res.end(data);
 }

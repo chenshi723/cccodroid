@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { CFG } from "./config.mjs";
+import { CFG, LIVE } from "./config.mjs";
 import { findSessionFile } from "./sessions.mjs";
 import { RUNS } from "./runs.mjs";
 import { publish } from "./bus.mjs";
@@ -51,7 +51,7 @@ export function goalCheck(sid) {
   if (GOAL_SEEN.size > 200) GOAL_SEEN.delete(GOAL_SEEN.keys().next().value);
   publish({ type: "goal", sessionId: sid, goal: g });
 }
-setInterval(() => { for (const r of RUNS.values()) { goalCheck(r.sessionId); tasksCheck(r.sessionId); } }, 4000).unref?.();
+if (LIVE) setInterval(() => { for (const r of RUNS.values()) { goalCheck(r.sessionId); tasksCheck(r.sessionId); } }, 4000).unref?.();
 
 // 任务清单（TaskCreate / TaskUpdate）：claude 存在 ~/.claude/tasks/<会话号>/<编号>.json，--resume 沿用同一会话号，所以每轮换进程也接得上
 const TASKS_DIR = path.join(CFG.home, ".claude", "tasks");

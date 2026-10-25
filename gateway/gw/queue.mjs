@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { CFG, LAST_LANG, log, tr, tz } from "./config.mjs";
+import { CFG, LIVE, LAST_LANG, log, tr, tz } from "./config.mjs";
 import { SETTINGS, saveSettings } from "./settings.mjs";
 import { PERM_MODES, PROVIDER, keyOf, providerById } from "./providers.mjs";
 import { sessProvider } from "./sessmodel.mjs";
@@ -113,7 +113,7 @@ function recoverRunMark() {
   }
   if (QUEUE.length) { log(`  排队的 ${QUEUE.length} 条消息已放回队列（挂起，等用户点 ⚡）`); saveRunMark(); }
 }
-recoverRunMark();
+if (LIVE) recoverRunMark();
 
 // 逐字增量太碎：攒 40ms 合成一条再发，其它事件到来前先冲掉，保证顺序不乱
 export function runEmit(run, ev) {

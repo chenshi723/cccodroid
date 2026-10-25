@@ -601,12 +601,37 @@ const compVersion = (up) => (RECIPE_DIR ? `${COMP.version || up}-r${COMP.revisio
 // targetSdk 36 不能 exec 数据目录里的 ld.so，只能 exec APK 原生库目录里的文件。
 // 按工具包锁文件记的那个 glibc deb 取并核 sha256：ld.so 与工具包里的 libc.so.6 必须出自同一次构建，否则 GLIBC_PRIVATE 对不上
 // Termux 仓库池里的旧 glibc 包会被删：--release <工具包 Release 目录 URL> 时退回那里留存的 glibc.deb（devkit.yml 传上去的，同样核 sha256）
-//   node devkit.mjs ldso --lock <devkit.lock.json> [--target 包名] [--out 文件] [--release URL/]
+// --vendored <目录>：源码树里随仓库存一份没改前缀的 ld.so（ld.json 记它出自哪个 glibc 包）。和锁文件对得上就直接用，构建不用联网；
+// 对不上（钉了新工具包）就照常下载，并把这份替换掉，提交即可
+//   node devkit.mjs ldso --lock <devkit.lock.json> [--target 包名] [--out 文件] [--release URL/] [--vendored 目录]
 if (cmd === "ldso") {
   const lock = JSON.parse(fs.readFileSync(opt("lock") || (() => { throw new Error("--lock <工具包的 devkit.lock.json> 必填"); })(), "utf8"));
   const target = opt("target", lock.target);
   const rec = lock.packages.find((p) => p.name === "glibc");
   if (!rec) throw new Error("锁文件里没有 glibc");
+  const vdir = opt("vendored"), vjson = vdir && path.join(vdir, "ld.json"), vso = vdir && path.join(vdir, "ld-linux-aarch64.so.1");
+  const vrec = vjson && fs.existsSync(vjson) ? JSON.parse(fs.readFileSync(vjson, "utf8")) : null;
+  let raw = null;
+  if (vrec && vrec.version === rec.version && vrec.deb === rec.sha256 && fs.existsSync(vso)) {
+    raw = fs.readFileSync(vso);
+    if (sha256(raw) !== vrec.sha256) throw new Error(`${vso} 的 sha256 与 ld.json 不符`);
+    console.log(`  用仓库里存的 ld.so（glibc ${rec.version}）`);
+  }
+  if (!raw) raw = await ldFromDeb(rec);
+  if (vdir && !(vrec && vrec.version === rec.version && vrec.deb === rec.sha256)) {
+    fs.mkdirSync(vdir, { recursive: true });
+    fs.writeFileSync(vso, raw);
+    fs.writeFileSync(vjson, JSON.stringify({ version: rec.version, deb: rec.sha256, sha256: sha256(raw) }, null, 2) + "\n");
+    console.log(`  ⚠ 已把 ${vdir} 换成 glibc ${rec.version} 的 ld.so，记得提交`);
+  }
+  const [buf, n] = relocator(target).swap(raw);
+  const out = opt("out", path.join(OUT, `ldso-${target}.so`));
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, buf, { mode: 0o755 });
+  console.log(`✓ ${out}  glibc ${rec.version} · ${buf.length} 字节 · 前缀改写 ${n} 处 · sha256 ${sha256(buf)}`);
+  process.exit(0);
+}
+async function ldFromDeb(rec) {
   let deb;
   try { deb = await fetchDeb({ ...rec, repo: REPOS.find((r) => (r.name || "main") === rec.repo) || REPOS[0] }); }
   catch (e) {
@@ -626,12 +651,7 @@ if (cmd === "ldso") {
     name = path.basename(e.link);           // 软链：跟到同目录的真文件
   }
   if (!e || e.type !== "0") throw new Error("glibc 包里没找到 ld-linux-aarch64.so.1");
-  const [buf, n] = relocator(target).swap(e.data);
-  const out = opt("out", path.join(OUT, `ldso-${target}.so`));
-  fs.mkdirSync(path.dirname(out), { recursive: true });
-  fs.writeFileSync(out, buf, { mode: 0o755 });
-  console.log(`✓ ${out}  glibc ${rec.version} · ${buf.length} 字节 · 前缀改写 ${n} 处 · sha256 ${sha256(buf)}`);
-  process.exit(0);
+  return e.data;
 }
 
 const BASE = COMP ? JSON.parse(fs.readFileSync(opt("base") || (() => { throw new Error("--base <工具包的 devkit.lock.json> 必填"); })(), "utf8")) : null;
