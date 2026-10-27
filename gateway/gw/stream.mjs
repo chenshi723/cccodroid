@@ -87,6 +87,22 @@ export const promptTokens = (u) => u
   ? (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0)
   : 0;
 
+/** 兼容桥往往到流末尾才知道输入用量；开头的 0 只是占位，不能清掉上次的真实值。 */
+function contextUsage(u, flags, sse) {
+  const n = promptTokens(u);
+  if (!Number.isFinite(n) || n <= 0) return;
+  if (flags) {
+    const changed = flags.contextTokens !== n;
+    flags.contextTokens = n; flags.mainCtx = n;
+    flags.promptUsage = { ...u };
+    const cc = u.cache_creation;
+    if (cc?.ephemeral_1h_input_tokens > 0) flags.cache1h = true;
+    if (cc?.ephemeral_5m_input_tokens > 0) flags.cache5m = true;
+    if (!changed) return;
+  }
+  sse({ type: "usage", contextTokens: n, outputTokens: u.output_tokens || 0 });
+}
+
 /** 把 claude 的 stream-json 事件翻译成前端事件 */
 export function translate(ev, { sse, onInit, onResult, onReplay, flags, provider }) {
   if (!ev || typeof ev !== "object") return;
@@ -120,26 +136,26 @@ export function translate(ev, { sse, onInit, onResult, onReplay, flags, provider
     case "stream_event": {
       // --include-partial-messages：逐字增量
       const e = ev.event;
-      // 每次 API 调用开头都有 message_start，它的 usage 就是【当时】的上下文占用。
-      // 取最后一次 = 当前真实占用。这条同时也是「按钮刚按下就更新」的来源。
+      // 原生接口在 message_start 给输入用量；兼容桥可能在 message_delta 才补齐。
+      // delta 的 usage 可能只有输出字段，只合并同一次请求，绝不能跨请求累加。
       // 流在中途断了（厂商掐线、网络抖），claude 会自己补一句「接着说」再请求一次。断掉那次已逐字推出去、
       // 但没等到 assistant 事件的半截正文 / 思考不会进对话记录 —— 界面上也得删掉，否则两遍回答拼在一个气泡里（群友截图）
       if (e?.type === "message_start" && flags && !ev.parent_tool_use_id && (flags.pendText || flags.pendThink)) {
         sse({ type: "discard_partial", text: flags.pendText || 0, think: flags.pendThink || 0 });
         flags.pendText = 0; flags.pendThink = 0;
       }
-      if (e?.type === "message_start" && e.message?.usage) {
-        const n = promptTokens(e.message.usage);
-        if (flags) flags.contextTokens = n;
-        if (flags && !ev.parent_tool_use_id) {
-          flags.mainCtx = n;
-          const cc = e.message.usage.cache_creation;
-          if (cc && cc.ephemeral_1h_input_tokens > 0) flags.cache1h = true;
-          if (cc && cc.ephemeral_5m_input_tokens > 0) flags.cache5m = true;
+      if (e?.type === "message_start") {
+        if (!ev.parent_tool_use_id && !ev.isSidechain) {
+          if (flags) flags.promptUsage = { ...e.message?.usage };
+          contextUsage(e.message?.usage, flags, sse);
+          sse({ type: "phase", phase: "wait" });   // 请求已被接住，模型还没出第一个字
         }
-        sse({ type: "usage", contextTokens: n, outputTokens: e.message.usage.output_tokens || 0 });
-        if (!ev.parent_tool_use_id) sse({ type: "phase", phase: "wait" });   // 请求已被接住，模型还没出第一个字
         break;
+      }
+      if (e?.type === "message_delta" && e.usage && !ev.parent_tool_use_id && !ev.isSidechain) {
+        const u = { ...flags?.promptUsage, ...e.usage };
+        if (flags) flags.promptUsage = u;
+        contextUsage(u, flags, sse);
       }
       // 进行到哪一步（界面回复末尾的小字）：思考块、工具参数、正文各自开始时报一声。
       // 思考块不管有没有吐原文都会有 content_block_start，所以「思考中」不依赖能不能看到思考内容。
@@ -182,6 +198,8 @@ export function translate(ev, { sse, onInit, onResult, onReplay, flags, provider
         }
         break;
       }
+      // 没有逐字事件、或桥把最终用量补在 assistant 上时，仍能更新上下文。
+      if (!ev.isSidechain && !ev.isMeta && !ev.isApiErrorMessage && ev.message?.model !== "<synthetic>") contextUsage(ev.message?.usage, flags, sse);
       // 逐字增量已发过就别重复整段文本
       const content = ev.message?.content || [];
       // 这一块已确认进了对话：逐字推过的不再算「半截」

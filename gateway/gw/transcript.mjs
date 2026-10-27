@@ -78,7 +78,7 @@ export async function readSessionPage(file, { before = null, limit = 40, exclude
     let cursor = before == null ? size : Math.max(0, Math.min(Number(before) || 0, size));
     let pos = cursor, tail = Buffer.alloc(0), scanned = 0;
     const items = [];
-    let contextTokens = null;
+    let contextTokens = null, contextDone = false;
 
     while (pos > 0) {
       const start = Math.max(0, pos - CH);
@@ -101,11 +101,19 @@ export async function readSessionPage(file, { before = null, limit = 40, exclude
         let turnStart = false;
         if (line) {
           let ev = null; try { ev = JSON.parse(line); } catch {}
-          if (ev && !(excludeFrom && ev.timestamp && Date.parse(ev.timestamp) >= excludeFrom)) {
-            // 倒着读，碰到的第一条 assistant 用量就是"当前"上下文占用
-            if (contextTokens == null && ev.type === "assistant" && ev.message?.usage && !ev.isSidechain) {
-              contextTokens = promptTokens(ev.message.usage);
+          // exclude 只防止正文重复渲染，用量仍要从最新的主会话消息取。
+          if (ev && !contextDone && !ev.isSidechain && !ev.isMeta) {
+            if (ev.type === "system" && ev.subtype === "compact_boundary") {
+              const m = ev.compactMetadata || ev.compact_metadata || {};
+              const post = m.postTokens ?? m.post_tokens;
+              if (Number.isFinite(post) && post >= 0) contextTokens = post;
+              contextDone = true;   // 不越过压缩边界去拿旧上下文
+            } else if (ev.type === "assistant" && !ev.isApiErrorMessage && ev.message?.model !== "<synthetic>") {
+              const n = promptTokens(ev.message?.usage);
+              if (Number.isFinite(n) && n > 0) { contextTokens = n; contextDone = true; }
             }
+          }
+          if (ev && !(excludeFrom && ev.timestamp && Date.parse(ev.timestamp) >= excludeFrom)) {
             const its = transcriptItems(ev);
             if (its.length) {
               items.unshift(...its);
