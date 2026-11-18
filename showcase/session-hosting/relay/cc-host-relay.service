@@ -1,0 +1,38 @@
+[Unit]
+Description=cccodroid encrypted session relay
+After=network.target
+
+[Service]
+Type=simple
+User=cc-host-relay
+Group=cc-host-relay
+WorkingDirectory=/opt/cc-host-relay
+EnvironmentFile=/etc/cc-host-relay.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/cc-host-relay/venv/bin/python /opt/cc-host-relay/server.py
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+StateDirectory=cc-host-relay
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=256M
+TasksMax=32
+LimitNOFILE=1024
+
+[Install]
+WantedBy=multi-user.target

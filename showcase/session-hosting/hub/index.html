@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>会话托管 · 说明书与真实演示</title>
+<style>
+:root{
+  --paper:#f7f6f3; --card:#fffdf9; --ink:#20242c; --mut:#6b7280; --line:#e3ded4;
+  --accent:#2b6fd6; --accent-ink:#1d55ad; --ok:#2f8f4e; --warn:#b0700f; --danger:#b3372f;
+  --code-bg:#f0ede6; --radius:12px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:16px/1.75 system-ui,-apple-system,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;}
+.wrap{max-width:1060px;margin:0 auto;padding:0 20px 80px}
+header.hero{padding:56px 0 8px}
+header.hero h1{font-size:34px;line-height:1.3;margin:0 0 10px;letter-spacing:.5px}
+header.hero .sub{color:var(--mut);font-size:17px;margin:0}
+.badges{margin:18px 0 0;display:flex;gap:8px;flex-wrap:wrap}
+.badge{font-size:12.5px;padding:4px 11px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--mut)}
+.badge.ok{color:var(--ok);border-color:#bcd9c4}
+nav.toc{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--paper) 88%,transparent);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin:26px -20px 0;padding:10px 20px;
+  display:flex;gap:4px;overflow-x:auto;white-space:nowrap}
+nav.toc a{color:var(--mut);text-decoration:none;font-size:13.5px;padding:5px 10px;border-radius:8px}
+nav.toc a:hover{background:var(--card);color:var(--accent-ink)}
+section{margin:52px 0 0;scroll-margin-top:64px}
+h2{font-size:24px;margin:0 0 6px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+h2 .no{color:var(--accent);font-variant-numeric:tabular-nums;margin-right:8px}
+h3{font-size:18px;margin:26px 0 8px}
+p{margin:10px 0}
+.lede{color:var(--mut)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin:16px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+ul,ol{margin:10px 0;padding-left:22px}
+li{margin:6px 0}
+code{background:var(--code-bg);border-radius:5px;padding:1px 6px;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;
+  font:13px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14.5px;background:var(--card)}
+th,td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--code-bg);font-weight:600}
+figure{margin:20px 0;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+figure img{display:block;width:100%;height:auto}
+figure.shot-phone img{max-width:430px;margin:0 auto}
+figcaption{padding:10px 16px;font-size:13.5px;color:var(--mut);border-top:1px solid var(--line);background:var(--card)}
+figcaption b{color:var(--ink)}
+.callout{border-left:4px solid var(--accent);background:var(--card);border-radius:0 10px 10px 0;padding:12px 16px;margin:16px 0}
+.callout.warn{border-color:var(--warn)}
+.callout.danger{border-color:var(--danger)}
+.callout.ok{border-color:var(--ok)}
+.callout .t{font-weight:600;display:block;margin-bottom:4px}
+.pill{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);color:var(--mut);margin-right:6px}
+.pill.real{color:var(--ok);border-color:#bcd9c4}
+.pill.sim{color:var(--warn);border-color:#e2cba4}
+svg.diagram{display:block;width:100%;height:auto;margin:8px 0}
+/* live demo */
+#demo .strip{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+button.btn{font:14px/1 inherit;padding:9px 14px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button.btn:hover{border-color:var(--accent);color:var(--accent-ink)}
+button.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.btn.primary:hover{background:var(--accent-ink)}
+.frames{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;align-items:start}
+@media(max-width:900px){.frames{grid-template-columns:1fr}}
+.framebox{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.framebox .fh{padding:9px 14px;font-size:13.5px;font-weight:600;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.framebox .fh a{color:var(--accent-ink);font-weight:400;font-size:12.5px;text-decoration:none}
+.framebox iframe{display:block;width:100%;border:0;background:#fff}
+#frame-tablet{height:640px}
+#frame-phone{height:640px}
+.wire{margin-top:16px}
+.wire table{font-size:12.5px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.wire td.head{color:var(--mut);word-break:break-all}
+#demo-offline{display:none}
+.muted{color:var(--mut)}
+footer{margin:70px 0 0;padding-top:20px;border-top:1px solid var(--line);color:var(--mut);font-size:13.5px}
+.kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;background:var(--card);padding:1px 7px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>会话托管<span style="color:var(--mut);font-weight:400"> · </span>说明书与真实演示</h1>
+  <p class="sub">平板继续跑 Claude 会话，手机远程看文字、发消息、插话、停止、回答授权卡。<br>执行环境、终端、工作区文件始终留在主机；中转服务器只转发端到端加密的密文。</p>
+  <div class="badges">
+    <span class="badge ok">端到端 AES-256-GCM</span>
+    <span class="badge ok">中转零明文</span>
+    <span class="badge">写操作幂等</span>
+    <span class="badge">事件驱动增量同步</span>
+    <span class="badge">fork 定制 · 会话托管模块</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#s0">概述</a><a href="#s1">能力边界</a><a href="#s2">安全模型</a><a href="#s3">快速上手</a>
+  <a href="#s4">远程聊天</a><a href="#s5">同步机制</a><a href="#s6">侧栏多设备</a><a href="#s7">保活更新</a>
+  <a href="#s8">自建中转</a><a href="#s9">协议参考</a><a href="#s10">已知限制</a><a href="#demo">真实演示</a><a href="#s12">演示口径</a>
+</nav>
+
+<section id="s0">
+  <h2><span class="no">0</span>这是什么</h2>
+  <p class="lede">会话托管把「正在运行的 Claude 会话」开放给另一台设备观察和有限控制，而不是把整台设备远程桌面化。</p>
+  <svg class="diagram" viewBox="0 0 900 250" role="img" aria-label="架构：主机与_control端_经加密中转通信">
+    <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8a8f98"/></marker></defs>
+    <rect x="20" y="40" width="240" height="150" rx="14" fill="#fffdf9" stroke="#e3ded4"/>
+    <text x="140" y="70" text-anchor="middle" font-size="17" font-weight="700" fill="#20242c">平板 · 主机</text>
+    <text x="140" y="98" text-anchor="middle" font-size="12.5" fill="#6b7280">Claude 会话 / 终端 / 文件</text>
+    <text x="140" y="120" text-anchor="middle" font-size="12.5" fill="#6b7280">托管引擎 + 适配器</text>
+    <rect x="60" y="138" width="160" height="34" rx="8" fill="#eaf1fb" stroke="#bcd0ee"/>
+    <text x="140" y="160" text-anchor="middle" font-size="12.5" fill="#1d55ad">密钥 secret 只在此</text>
+    <rect x="640" y="40" width="240" height="150" rx="14" fill="#fffdf9" stroke="#e3ded4"/>
+    <text x="760" y="70" text-anchor="middle" font-size="17" font-weight="700" fill="#20242c">手机 · 控制端</text>
+    <text x="760" y="98" text-anchor="middle" font-size="12.5" fill="#6b7280">原聊天页组件渲染</text>
+    <text x="760" y="120" text-anchor="middle" font-size="12.5" fill="#6b7280">发送 / 插话 / 停止 / 授权</text>
+    <rect x="680" y="138" width="160" height="34" rx="8" fill="#eaf1fb" stroke="#bcd0ee"/>
+    <text x="760" y="160" text-anchor="middle" font-size="12.5" fill="#1d55ad">密钥 secret 只在此</text>
+    <rect x="330" y="70" width="240" height="90" rx="14" fill="#f0ede6" stroke="#e3ded4"/>
+    <text x="450" y="100" text-anchor="middle" font-size="16" font-weight="700" fill="#20242c">中转服务器</text>
+    <text x="450" y="124" text-anchor="middle" font-size="12.5" fill="#6b7280">只转发不透明密文</text>
+    <text x="450" y="143" text-anchor="middle" font-size="12.5" fill="#6b7280">落盘仅令牌 SHA-256</text>
+    <line x1="262" y1="100" x2="328" y2="100" stroke="#8a8f98" stroke-width="2" marker-end="url(#ar)"/>
+    <line x1="638" y1="100" x2="572" y2="100" stroke="#8a8f98" stroke-width="2" marker-end="url(#ar)"/>
+    <line x1="328" y1="130" x2="262" y2="130" stroke="#8a8f98" stroke-width="2" marker-end="url(#ar)"/>
+    <line x1="572" y1="130" x2="638" y2="130" stroke="#8a8f98" stroke-width="2" marker-end="url(#ar)"/>
+    <text x="295" y="88" text-anchor="middle" font-size="11.5" fill="#2f8f4e">密文</text>
+    <text x="605" y="88" text-anchor="middle" font-size="11.5" fill="#2f8f4e">密文</text>
+    <text x="450" y="215" text-anchor="middle" font-size="12.5" fill="#6b7280">TLS 在外层保护连接；AES-256-GCM 在内层保护内容。服务器两层都解不开内容。</text>
+  </svg>
+  <p>主机在托管面板里<b>逐个会话</b>开启托管；控制端凭<b>配对码</b>连接。配对码相当于这些会话的控制权，只给信任的设备。没有开启托管的会话对远端完全不可见。</p>
+  <div class="callout"><span class="t">一句话区分</span>这不是远程桌面：没有文件同步、没有终端代理、不能远程点安卓系统弹窗、不能关机后继续。它同步的是「会话文字 + 会话控制」。</div>
+</section>
+
+<section id="s1">
+  <h2><span class="no">1</span>能做什么 / 不能做什么</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0;color:var(--ok)">远程可以</h3>
+      <ul>
+        <li>查看已托管会话的历史与实时输出（原聊天组件渲染）</li>
+        <li>发送普通文字消息、运行中插话</li>
+        <li>停止当前轮（挂起该会话排队消息）</li>
+        <li>回答授权卡：允许 / 拒绝 / 拒绝并停止</li>
+        <li>回答 AskUserQuestion 选择题、确认 ExitPlanMode 计划</li>
+        <li>翻历史窗口、书签、删除/撤销、分叉/仅对话回退（主机执行）</li>
+        <li>看主机口径的上下文 / 模型 / 权限 / 统计 / 费用</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;color:var(--danger)">远程不可以</h3>
+      <ul>
+        <li>读未托管会话、读工作区文件、传二进制</li>
+        <li>发 <code>/</code> 斜杠命令（改全局配置的请在主机做）</li>
+        <li>「始终允许」、切全局权限模式</li>
+        <li>批准被截短（<code>cut</code>）的授权卡——只能拒绝或到主机看全文</li>
+        <li>远程确认安卓安装器 / Shizuku / 系统安全弹窗</li>
+        <li>任意路径访问、任意 HTTP 转发、全局 abort</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="s2">
+  <h2><span class="no">2</span>安全模型</h2>
+  <h3>2.1 端到端加密，中转零明文</h3>
+  <p>主机生成独立 32 字节 <code>secret</code>。每个包用 <b>AES-256-GCM</b>：随机 12 字节 IV、16 字节认证标签，封装为 <code>base64url(IV‖tag‖ciphertext)</code>。附加认证数据 <code>AAD = cc-host-v1:{room}:{id}:{direction}</code> 把密文绑定到房间、请求编号和方向，防跨房间/跨方向重放。<code>secret</code> 只存在于配对码里，<b>从不经过服务器</b>。</p>
+  <p>中转服务器只看到不透明密文与随机编号；持久化只落 host/client 令牌的 <b>SHA-256</b>，不落明文、不落密钥、不记正文到日志。下文「真实演示」的中转视角会把经过的密文片段直接展示给你看。</p>
+  <h3>2.2 配对码 = 控制权</h3>
+  <p>配对码格式 <code>CCH1.</code> + base64url(JSON <code>{v,url,room,clientToken,secret}</code>)。持有它即可操作所有已托管会话，因此默认隐藏、点击才显示，勿截图公开、用后清剪贴板。生产只允许 HTTPS 源站地址（测试显式允许回环）。</p>
+  <h3>2.3 凭据分离与吊销</h3>
+  <p>建房返回 <code>hostToken</code> 与 <code>clientToken</code> 两把独立凭据：主机用 hostToken 轮询/回复，控制端用 clientToken 发 RPC，服务器据此隔离双方。主机「吊销所有配对」删除房间、双方凭据立即失效；「取消托管」立即撤销该会话 grant；「暂停托管」只停远程访问、不停本地任务。</p>
+  <h3>2.4 写操作幂等 + 授权绑定</h3>
+  <p>每个写请求（send/stop/answer/message）带唯一 32 位 hex 编号。主机<b>先持久化预占编号再调用上游</b>：回执丢失或网络重试时，同编号只返回第一次结果，绝不执行第二遍。编号台账绑定本次 <code>boot</code> 与该会话 <code>grant</code>；主机重启或重新托管后旧编号自然失效。操作身份绑定 op/sessionId/boot/grant/args，不因运输 expires 续期而重新执行。</p>
+  <div class="callout warn"><span class="t">连接故障不自动重发写操作</span>失败时先刷新会话核对，避免把「回执丢了」误判成「没执行」。相同请求重试必须沿用原编号与原参数。</div>
+</section>
+
+<section id="s3">
+  <h2><span class="no">3</span>快速上手</h2>
+  <h3>3.1 平板：作为主机</h3>
+  <ol>
+    <li>顶部 <span class="kbd">⋯</span> → 双线切换图标（会话托管）→「此设备作为主机」。宽屏下托管面板以工作栏 pane 呈现。</li>
+    <li>填设备名、中转服务器地址、注册令牌（服务器生成的一次性建房凭据，<b>不是 API Key</b>，不打进 APK）。</li>
+    <li>点「建立主机」。回到要远程看的对话，点「托管当前会话」；或「选择其他本地会话」。</li>
+    <li>点「显示配对码」，把 <code>CCH1.</code> 开头完整代码安全地发给自己的手机。</li>
+  </ol>
+  <figure><img src="assets/t02-host-form.png" alt="主机建立表单"><figcaption><b>图 3-1</b> 建立托管主机：设备名 / 中转服务器 / 注册令牌。注册令牌只在建房时需要。</figcaption></figure>
+  <figure><img src="assets/t03-host-shared.png" alt="主机已建立并托管会话，显示配对码"><figcaption><b>图 3-2</b> 主机就绪：状态「中转连接正常」，当前会话已托管，配对码点击后才显示。侧栏可见未托管的私人会话——它对远端不可见。</figcaption></figure>
+  <h3>3.2 手机：作为控制端</h3>
+  <ol>
+    <li>顶部 <span class="kbd">⋯</span> → 会话托管 →「连接其他设备」。</li>
+    <li>填设备名称、粘贴配对码、「保存配对」（最多 8 台远端）。</li>
+    <li>「连接」→ 选择已托管会话。看到「主机在线」后即可操作。</li>
+  </ol>
+  <figure class="shot-phone"><img src="assets/p01-pair-form.png" alt="控制端配对表单"><figcaption><b>图 3-3</b> 控制端：给主机起名 + 粘贴 CCH1. 配对码。</figcaption></figure>
+  <figure class="shot-phone"><img src="assets/p02-remote-list.png" alt="远端托管会话列表，主机在线"><figcaption><b>图 3-4</b> 连接后只列出主机主动托管的会话；状态来自真实 RPC 成败，不伪装实时。</figcaption></figure>
+</section>
+
+<section id="s4">
+  <h2><span class="no">4</span>远程聊天页</h2>
+  <p>远程会话<b>接入原聊天页的数据来源</b>，不是独立页面：消息、工具卡、思考块、Markdown、滚动、历史窗口、输入区全部复用原组件。草稿按 <code>remote:&lt;remoteId&gt;:&lt;sid&gt;</code> 隔离，本机与远程同号会话不串草稿/权限/阅读位置。</p>
+  <figure class="shot-phone"><img src="assets/p03-remote-chat.png" alt="远程聊天页，原组件渲染历史与主机元数据"><figcaption><b>图 4-1</b> 远程聊天页：顶部「主机在线 · 演示平板」，上下文/压缩线/今日 tokens 均为主机口径。</figcaption></figure>
+  <h3>4.1 发送与插话</h3>
+  <p>点击即清空输入、保留原文恢复入口，显示「正在发送到主机」；主机回执到达后进入连接/等待/思考/工具等真实阶段。失败恢复原文但<b>不自动重发</b>。插话把消息并进正在跑的这一轮，不打断当前步骤。</p>
+  <figure class="shot-phone"><img src="assets/p04-sending.png" alt="发送中阶段提示"><figcaption><b>图 4-2</b> 发送反馈：原消息组件显示发送阶段，输入立即清空。</figcaption></figure>
+  <h3>4.2 授权卡</h3>
+  <p>主机需要确认的工具会以授权卡出现，远程只给「允许 / 拒绝▾（拒绝 / 拒绝并停止）」，<b>没有「始终允许」</b>。命令与路径不截短、必须看全；被截短（<code>cut</code>）的卡禁止允许。</p>
+  <figure class="shot-phone"><img src="assets/p05-perm-card.png" alt="Bash 授权卡，完整命令与允许/拒绝"><figcaption><b>图 4-3</b> Bash 授权卡：完整命令可见，允许/拒绝。底部 perm bar 汇总待确认。</figcaption></figure>
+  <figure class="shot-phone"><img src="assets/p07-question.png" alt="AskUserQuestion 选择题卡"><figcaption><b>图 4-4</b> AskUserQuestion：画问题与选项，须回答每一道才能提交。</figcaption></figure>
+  <figure class="shot-phone"><img src="assets/p08-plan.png" alt="ExitPlanMode 计划卡"><figcaption><b>图 4-5</b> ExitPlanMode：显示完整计划；批准前有原生二次确认，主机仍沿用原权限模式。</figcaption></figure>
+  <h3>4.3 停止与继续</h3>
+  <p>「停止」中断当前轮并挂起该会话排队消息；已执行的文件操作<b>不会回滚</b>。恢复时发「继续」或新要求（是接续对话，不是 SIGSTOP 内存冻结恢复）。</p>
+  <figure class="shot-phone"><img src="assets/p09-stopped.png" alt="停止后的中断卡与继续入口"><figcaption><b>图 4-6</b> 停止后：中断卡 + 「继续」入口；排队消息挂起，点 ⚡ 才发。</figcaption></figure>
+</section>
+
+<section id="s5">
+  <h2><span class="no">5</span>同步机制</h2>
+  <p>控制端不发高频轮询、不是 SSE。<code>watch</code> 请求挂在主机事件总线上：有变化才醒来，合并 80ms 内连续事件回一帧<b>增量</b>；无变化挂满 8 秒回心跳。文字增量只传追加部分（<code>tailPatch</code>），不重发整段；历史/范围失效才 <code>reset</code> 全量对齐。</p>
+  <svg class="diagram" viewBox="0 0 900 210" role="img" aria-label="watch 长轮询增量同步时序">
+    <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8a8f98"/></marker></defs>
+    <text x="120" y="30" text-anchor="middle" font-size="14" font-weight="700" fill="#20242c">控制端</text>
+    <text x="450" y="30" text-anchor="middle" font-size="14" font-weight="700" fill="#20242c">中转</text>
+    <text x="780" y="30" text-anchor="middle" font-size="14" font-weight="700" fill="#20242c">主机事件总线</text>
+    <line x1="120" y1="40" x2="120" y2="190" stroke="#e3ded4" stroke-width="2"/>
+    <line x1="450" y1="40" x2="450" y2="190" stroke="#e3ded4" stroke-width="2"/>
+    <line x1="780" y1="40" x2="780" y2="190" stroke="#e3ded4" stroke-width="2"/>
+    <line x1="120" y1="60" x2="450" y2="60" stroke="#8a8f98" stroke-width="2" marker-end="url(#ar2)"/>
+    <text x="285" y="52" text-anchor="middle" font-size="11.5" fill="#6b7280">watch(revision) 密文</text>
+    <line x1="450" y1="60" x2="780" y2="60" stroke="#8a8f98" stroke-width="2" marker-end="url(#ar2)"/>
+    <line x1="780" y1="100" x2="450" y2="100" stroke="#2f8f4e" stroke-width="2" marker-end="url(#ar2)"/>
+    <text x="615" y="92" text-anchor="middle" font-size="11.5" fill="#2f8f4e">delta 事件唤醒 → 增量帧</text>
+    <line x1="450" y1="100" x2="120" y2="100" stroke="#2f8f4e" stroke-width="2" marker-end="url(#ar2)"/>
+    <line x1="120" y1="140" x2="450" y2="140" stroke="#8a8f98" stroke-width="2" marker-end="url(#ar2)"/>
+    <text x="285" y="132" text-anchor="middle" font-size="11.5" fill="#6b7280">watch(新 revision)</text>
+    <line x1="450" y1="140" x2="780" y2="140" stroke="#8a8f98" stroke-width="2" marker-end="url(#ar2)"/>
+    <line x1="780" y1="175" x2="450" y2="175" stroke="#8a8f98" stroke-width="2" marker-end="url(#ar2)"/>
+    <text x="615" y="167" text-anchor="middle" font-size="11.5" fill="#6b7280">无变化挂 8s → unchanged 心跳</text>
+    <line x1="450" y1="175" x2="120" y2="175" stroke="#8a8f98" stroke-width="2" marker-end="url(#ar2)"/>
+  </svg>
+  <p>面板可见时配置约 2.5s  poll 一次；聊天页用事件驱动 watch。切页/关闭用 AbortController 取消；失联立即禁用控制按钮（12s watchdog），成功同步后恢复。读历史不替换正在看的段落、不抢焦点，保留滚动位置与草稿。</p>
+  <p>主机 <code>list.history=1</code> 支持固定 from/to/size/exclude 的双向字节范围历史窗口（MAX_PAGES=8）；前翻传 before/exclude、后翻传 after/until/exclude。内容或范围失效丢旧偏移重新同步。旧主机缺能力时显示尾页但翻历史要求升级。</p>
+</section>
+
+<section id="s6">
+  <h2><span class="no">6</span>侧栏与多设备</h2>
+  <p>侧栏「远程」分组直接列出已配对设备的托管会话（运行/待答/待命圆点 + 设备名），点一下进入。分组被上游 <code>renderSideRecent</code> 整块重写后由 MutationObserver/定时检查补回；侧栏没打开时零请求零重画。</p>
+  <figure class="shot-phone"><img src="assets/p10-sidebar-remote.png" alt="侧栏远程分组"><figcaption><b>图 6-1</b> 侧栏「远程」分组：托管会话 + 设备名。首次进入远程会话前若未缓存列表，返回一次后即出现。</figcaption></figure>
+  <figure class="shot-phone"><img src="assets/p11-sidebar-reenter.png" alt="从侧栏点回远程会话"><figcaption><b>图 6-2</b> 从侧栏分组点回远程会话：最近离开的组件树内存缓存（2 分钟 TTL）保留节点/滚动，恢复后核对 boot/grant/revision 才解锁写操作。</figcaption></figure>
+  <p>多控制端同时使用时，授权<b>首次回答有效</b>；过期卡片报错，不会批准另一个请求。消息操作（删除/撤销/分叉/回退/书签）在主机执行，控制端只发有限白名单请求；新分支不自动扩展托管授权。</p>
+</section>
+
+<section id="s7">
+  <h2><span class="no">7</span>保活与更新</h2>
+  <ul>
+    <li>主机保持供电、联网，按系统设置允许后台运行；不代用户开 Shizuku 或改电池白名单。</li>
+    <li>原生前台服务保持网关；有托管会话且启用时，已验签的原生状态查询持有<b>托管租约</b>，防止普通划掉任务卡被当完全空闲。不伪造运行任务标记。</li>
+    <li>系统强杀、强行停止、关机、重启后仍需重新打开主机应用；纯 JS 模块不保证这些情形自动恢复。</li>
+    <li>更新应用或工具包前先「暂停托管连接」，否则原生更新器可能为保护托管延后安装。</li>
+  </ul>
+  <div class="callout danger"><span class="t">不要承诺关机后继续</span>应用退后台可继续，但系统杀进程/断网/关机后无法远程控制。文案与界面均如实说明。</div>
+</section>
+
+<section id="s8">
+  <h2><span class="no">8</span>自建中转服务</h2>
+  <p>中转是独立 Python aiohttp 服务，前缀 <code>/cc-host/v1</code>，只监听 <code>127.0.0.1:7865</code>，接在现有 Caddy 443 后。只中转不透明密文，无文件/终端代理。</p>
+  <pre>CC_HOST_ENROLL_TOKEN=&lt;43字符 base64url 强随机&gt;
+CC_HOST_STATE=/var/lib/cc-host-relay/rooms.json   # 0600，仅令牌 SHA256
+CC_HOST_PORT=7865
+CC_HOST_BIND=127.0.0.1</pre>
+  <ul>
+    <li>非 root 用户运行（systemd <code>cc-host-relay.service</code>）；环境文件 0600。</li>
+    <li>Caddy 独立反代 <code>/cc-host/v1/*</code>，不迁移原有路由；改配置前备份、验证后重启。</li>
+    <li>健康检查 <code>GET /cc-host/v1/health</code> → <code>{ok:true,protocol:1}</code>，公开、不泄露房间。</li>
+    <li>拒绝带 Origin 的请求（只接受本地网关服务端 fetch）；禁止重定向；不接受 query token。</li>
+    <li>退役：先暂停/吊销主机，再删独立路由、验证配置、重启 Caddy、停中转；不要用旧整份配置覆盖新增配置。</li>
+  </ul>
+</section>
+
+<section id="s9">
+  <h2><span class="no">9</span>协议与接口参考</h2>
+  <h3>9.1 中转端点</h3>
+  <table>
+    <tr><th>端点</th><th>凭据</th><th>说明</th></tr>
+    <tr><td>POST /rooms</td><td>enrollToken</td><td>建房 → {room,hostToken,clientToken}；最多 32 房间；持久化成功才返回</td></tr>
+    <tr><td>DELETE /rooms/:room</td><td>hostToken</td><td>吊销双方凭据、取消等候请求</td></tr>
+    <tr><td>GET /rooms/:room/poll</td><td>hostToken</td><td>≤20s 长轮询 → {requests:[{id,packet}]}；一次≤4；只允许一个 poll（第二个 409）</td></tr>
+    <tr><td>POST /rooms/:room/rpc</td><td>clientToken</td><td>{id,packet} 入主机队列，≤25s 等回执；过期 504；同 id 活跃重复 409</td></tr>
+    <tr><td>POST /rooms/:room/reply</td><td>hostToken</td><td>{id,packet}；未知/过期 id 409</td></tr>
+  </table>
+  <p class="muted">限制：JSON body ≤4MiB、密文串 ≤3MiB；每房间 ≤16 未完成 RPC、≤1 poll；全局 ≤64 未完成。错误统一 <code>{error}</code>；<code>Cache-Control: no-store</code>。</p>
+  <h3>9.2 托管 RPC op（控制端 → 主机）</h3>
+  <table>
+    <tr><th>op</th><th>类型</th><th>说明</th></tr>
+    <tr><td>list</td><td>读</td><td>{boot,name,sync,resume,history,actions,info,sessions[]}；只列已托管会话；成功=此刻主机在线</td></tr>
+    <tr><td>session</td><td>读</td><td>历史页 + live + run/perms/queue/info/range/marks；翻页 before/after/until/exclude</td></tr>
+    <tr><td>watch</td><td>读</td><td>事件驱动增量长轮询；revision/immediate；reset 或 delta 或 unchanged</td></tr>
+    <tr><td>send</td><td>写</td><td>{message,inject}；1–24000 字；拒绝 / 斜杠命令；幂等</td></tr>
+    <tr><td>stop</td><td>写</td><td>{runId}；只停这一会话、挂起其队列</td></tr>
+    <tr><td>answer</td><td>写</td><td>{runId,id,behavior,answers,message,interrupt}；无始终允许；cut 禁止 allow</td></tr>
+    <tr><td>message</td><td>写</td><td>{action:delete/undo/fork/rewind/mark,revision,…}；主机执行、核对历史指纹</td></tr>
+  </table>
+  <h3>9.3 本地 UI 接口（同源、原网关鉴权）</h3>
+  <p class="muted"><code>/api/hosting/</code>：status、local-sessions、host、host-toggle、host-remove、pair-code、share、pair、forget、rpc。凭据与会话文字不缓存；不增加公开入口。</p>
+</section>
+
+<section id="s10">
+  <h2><span class="no">10</span>已知限制（如实）</h2>
+  <ul>
+    <li>双真实安卓设备的 WebView / 键盘 / 异网 / 后台保活验收仍待安装后完成；无头浏览器与回环延迟不代表实网最差时延。</li>
+    <li>首次网络快照有传输与一次性构建成本；文本/单次/总预算有摘要限额，不承诺超限全文或二进制传输。</li>
+    <li>主机队列与后台任务只读显示；撤回/清队列/停单个后台任务需回主机；整轮停止可用原发送键。</li>
+    <li>远程页打开期间侧栏后台索引不刷新；首次进入远程会话前若未缓存列表，返回一次后分组才出现。</li>
+    <li>本机侧栏运行点在远程期间保留最后本机状态，退出后重新对账；不把主机运行标为手机同号会话。</li>
+  </ul>
+</section>
+
+<section id="demo">
+  <h2><span class="no">11</span>真实演示</h2>
+  <p class="lede">下面两块是<b>真实生产前端</b>（左：平板主机，右：手机控制端），经<b>真实 Python 中转</b>与<b>真实托管引擎/适配器/事件总线</b>通信；唯一模拟的是模型执行（脚本剧本）与公网（回环中转）。所有按钮走真实 RPC。</p>
+  <div id="demo-offline" class="callout warn"><span class="t">演示服务未运行</span>本页作为静态文件打开时交互不可用。启动演示：<code>sh start.sh</code>，然后访问 <code>http://127.0.0.1:17800/</code>。图文部分仍可正常阅读。</div>
+  <div class="strip">
+    <button class="btn primary" data-act="setup">一键建立主机＋托管＋配对</button>
+    <button class="btn" data-act="transfer">把配对码传给手机</button>
+    <button class="btn" data-act="send" data-msg="运行 ls 看看目录">发：触发授权卡</button>
+    <button class="btn" data-act="send" data-msg="问我一个问题">发：触发选择题</button>
+    <button class="btn" data-act="send" data-msg="给我一个计划">发：触发计划卡</button>
+    <button class="btn" data-act="send" data-msg="写一篇长文">发：长文同步</button>
+    <button class="btn" data-act="stop">停止本轮</button>
+    <button class="btn" data-act="host-toggle" data-on="0">暂停托管</button>
+    <button class="btn" data-act="host-toggle" data-on="1">启用托管</button>
+    <button class="btn" data-act="share" data-on="0">取消托管</button>
+    <button class="btn" data-act="share" data-on="1">重新托管</button>
+  </div>
+  <div class="frames">
+    <div class="framebox"><div class="fh"><span>平板 · 主机</span><a id="link-tablet" target="_blank" rel="noopener">新窗口打开 ↗</a></div><iframe id="frame-tablet" title="主机界面"></iframe></div>
+    <div class="framebox"><div class="fh"><span>手机 · 控制端</span><a id="link-phone" target="_blank" rel="noopener">新窗口打开 ↗</a></div><iframe id="frame-phone" title="控制端界面"></iframe></div>
+  </div>
+  <div class="wire card">
+    <h3 style="margin-top:0">中转视角：服务器只看到密文</h3>
+    <p class="muted" style="margin-top:0">每条记录是一次经过中转的包。<code>head</code> 是 base64url 密文片段——服务器没有密钥，解不开；落盘只有令牌哈希。</p>
+    <table><thead><tr><th>#</th><th>方向</th><th>请求 id</th><th>字节</th><th>密文片段（不透明）</th></tr></thead><tbody id="wire-body"></tbody></table>
+    <p class="muted" id="relay-state"></p>
+  </div>
+</section>
+
+<section id="s12">
+  <h2><span class="no">12</span>演示口径：哪些是真、哪些是假</h2>
+  <table>
+    <tr><th>组件</th><th>真 / 假</th><th>说明</th></tr>
+    <tr><td>前端页面 / 组件 / 面板</td><td><span class="pill real">真</span></td><td>已安装应用的生产 web 资源，逐字节加载</td></tr>
+    <tr><td>托管引擎 / 适配器 / 加密</td><td><span class="pill real">真</span></td><td>生产 gw/hosting 模块，AES-GCM、幂等台账、boot/grant 全真</td></tr>
+    <tr><td>排队 / 插话 / 停止 / 授权 / 事件总线</td><td><span class="pill real">真</span></td><td>生产 queue/runs/bus/sessions/bookmarks 路由</td></tr>
+    <tr><td>中转服务</td><td><span class="pill real">真</span></td><td>真实 relay/server.py，仅改监听回环端口</td></tr>
+    <tr><td>模型执行</td><td><span class="pill sim">模拟</span></td><td>脚本剧本替换 startRun，模拟一轮输出/工具/授权</td></tr>
+    <tr><td>公网传输</td><td><span class="pill sim">模拟</span></td><td>回环中转代替公网 HTTPS；时延不代表实网</td></tr>
+    <tr><td>会话数据</td><td><span class="pill sim">模拟</span></td><td>演示剧本与隔离 HOME，不读真实配对/真实会话</td></tr>
+  </table>
+  <div class="callout ok"><span class="t">安全隔离</span>演示使用一次性 gw 副本与隔离 HOME，绝不触碰已安装应用、真实配对或线上中转；不自动安装 APK。</div>
+</section>
+
+<footer>
+  会话托管 · fork 定制模块说明书。配图为无头 Chromium 驱动真实生产前端截取；演示服务见 <code>hosting-demo/</code>。
+</footer>
+</div>
+
+<script>
+(function(){
+  var HUB = location.origin.startsWith("http") ? location.origin : "http://127.0.0.1:17800";
+  var alive = false;
+  function el(id){ return document.getElementById(id); }
+  function setFrames(ports){
+    var t = "http://127.0.0.1:"+ports.tablet+"/", p = "http://127.0.0.1:"+ports.phone+"/";
+    el("frame-tablet").src = t; el("frame-phone").src = p;
+    el("link-tablet").href = t; el("link-phone").href = p;
+  }
+  function renderWire(w, state){
+    var tb = el("wire-body"); tb.innerHTML = "";
+    (w||[]).slice(-40).reverse().forEach(function(r){
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<td>"+r.n+"</td><td>"+r.kind+"</td><td>"+(r.id||"")+"</td><td>"+r.bytes+"</td><td class='head'>"+(r.head||"")+"…</td>";
+      tb.appendChild(tr);
+    });
+    if (state && state.rooms){
+      var rooms = Object.keys(state.rooms);
+      el("relay-state").textContent = "中转落盘房间数：" + rooms.length +
+        (rooms.length ? "；每房间仅存 hostSha256 / clientSha256，无明文、无密钥。" : "（尚未建房）");
+    }
+  }
+  function refresh(){
+    fetch(HUB+"/api/demo/status").then(function(r){ return r.json(); }).then(function(s){
+      alive = true; el("demo-offline").style.display = "none";
+      if (!el("frame-tablet").src) setFrames(s.ports);
+      renderWire(s.wire, s.relayState);
+    }).catch(function(){ alive = false; el("demo-offline").style.display = "block"; });
+  }
+  document.querySelectorAll("#demo button.btn").forEach(function(b){
+    b.addEventListener("click", function(){
+      var act = b.dataset.act, body = {};
+      if (act === "send") body = { message: b.dataset.msg };
+      if (act === "host-toggle" || act === "share") body = { enabled: b.dataset.on === "1" };
+      fetch(HUB+"/api/demo/"+act, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) })
+        .then(function(r){ return r.json(); })
+        .then(function(s){ if (s && s.wire) renderWire(s.wire, s.relayState); refresh(); })
+        .catch(function(e){ alert("演示服务未运行或操作失败：" + e.message); });
+    });
+  });
+  refresh();
+  setInterval(function(){ if (alive) fetch(HUB+"/api/demo/wire?n=40").then(function(r){return r.json();}).then(function(s){ renderWire(s.wire); }).catch(function(){}); }, 1500);
+})();
+</script>
+</body>
+</html>

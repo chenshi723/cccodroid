@@ -1,0 +1,28 @@
+{
+  "match": [
+    {"host": ["117.72.43.36"], "path": ["/cc-host/v1/*"]}
+  ],
+  "handle": [
+    {
+      "handler": "headers",
+      "response": {
+        "set": {
+          "Strict-Transport-Security": ["max-age=31536000; includeSubDomains"],
+          "Cache-Control": ["no-store"],
+          "X-Content-Type-Options": ["nosniff"]
+        },
+        "delete": ["Server"]
+      }
+    },
+    {
+      "handler": "reverse_proxy",
+      "upstreams": [{"dial": "127.0.0.1:7865"}],
+      "transport": {
+        "protocol": "http",
+        "dial_timeout": "3s",
+        "response_header_timeout": "35s"
+      }
+    }
+  ],
+  "terminal": true
+}
